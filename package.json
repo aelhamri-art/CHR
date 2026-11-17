@@ -1,0 +1,16 @@
+{
+  "name": "axium-commerce-os-chr",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "check": "node --check src/api.js && node --check src/schema.js && node --check src/app.js && node --check src/rules.js",
+    "serve": "python3 -m http.server 8080",
+    "verify": "npm run check && npm test"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "license": "UNLICENSED"
+}

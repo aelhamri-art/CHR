@@ -160,7 +160,7 @@ export const MODULES={
  }
 };
 export const GROUPS=[
- {label:'Vue générale',items:[['dashboard','Tableau de bord','layout-dashboard'],['orders','Commandes','shopping-bag'],['products','Produits','package'],['product_variants','Variantes','layers'],['collections','Collections','folder'],['collection_products','Associations','link']]},
+ {label:'Vue générale',items:[['dashboard','Tableau de bord','layout-dashboard'],['orders','Commandes','shopping-bag'],['products','Produits','package'],['product_variants','Variantes','layers'],['collections','Collections','folder'],['collection_products','Associations','link'],['media','Médias produits','image']]},
  {label:'Exploitation',items:[['locations','Entrepôts','warehouse'],['inventory_levels','Stocks','boxes'],['inventory_movements','Mouvements','arrow-left-right'],['customers','Clients','users'],['shipping_profiles','Profils livraison','truck'],['shipping_zones','Zones','map'],['shipping_rates','Tarifs livraison','scale'],['tax_rules','Taxes et TVA','receipt']]},
  {label:'Commerce',items:[['discounts','Réductions','badge-percent'],['payment_transactions','Paiements','credit-card'],['refunds','Remboursements','receipt'],['order_lines','Lignes de commande','list'],['audit_events','Historique','shield-check']]},
  {label:'Système',items:[['settings','Paramètres','settings'],['action_requests','Intégration Aximus','sparkles']]}

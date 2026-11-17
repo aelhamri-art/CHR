@@ -108,3 +108,28 @@ export async function createStore(userId,name,slug) {
 export async function getRelated(table,storeId) {
   return list(table,storeId,{limit:1000,order:'created_at.asc'});
 }
+
+/* Product images are public assets; only authorized store staff may upload/delete. */
+function storageUrl(bucket,path) {
+ const parts=String(path).split('/').map(encodeURIComponent).join('/');
+ return BASE+'/storage/v1/object/'+encodeURIComponent(bucket)+'/'+parts;
+}
+export function publicFileUrl(bucket,path) {
+ return BASE+'/storage/v1/object/public/'+encodeURIComponent(bucket)+'/'+String(path).split('/').map(encodeURIComponent).join('/');
+}
+export async function uploadPublicFile(bucket,path,file) {
+ if(!getSession()?.access_token)throw new ApiError('Connexion requise.',401);
+ const response=await fetch(storageUrl(bucket,path),{
+  method:'POST',headers:{apikey:KEY,Authorization:'Bearer '+auth.access_token,
+  'Content-Type':file.type,'x-upsert':'false'},body:file
+ });
+ const data=await response.json().catch(()=>null);
+ if(!response.ok)throw new ApiError(data?.message||data?.error||'Téléversement refusé.',response.status,data);
+ return data;
+}
+export async function deletePublicFile(bucket,path){
+ if(!getSession()?.access_token)throw new ApiError('Connexion requise.',401);
+ const response=await fetch(storageUrl(bucket,path),{method:'DELETE',
+  headers:{apikey:KEY,Authorization:'Bearer '+auth.access_token}});
+ if(!response.ok){const data=await response.json().catch(()=>null);throw new ApiError(data?.message||'Suppression refusée.',response.status);}
+}

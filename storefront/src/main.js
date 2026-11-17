@@ -218,8 +218,9 @@ function intentSection(){
  link('Découvrir notre approche','/approche','text-arrow')));
 }
 function manifesto(){
- return section('philosophie','manifesto-section',
- el('div',{className:'manifesto-index'},'NOTRE CONVICTION / 001'),
+ return section('philosophie','manifesto-section manifesto-v2',
+ el('img',{className:'manifesto-photo',src:'https://images.pexels.com/photos/26733062/pexels-photo-26733062.jpeg?auto=compress&cs=tinysrgb&w=1800',loading:'lazy',decoding:'async',alt:'', 'aria-hidden':'true'}),
+ el('div',{className:'manifesto-index'},'UNE VISION MÉTIER / CHR'),
  el('blockquote',{className:'manifesto-quote','data-reveal':''},
  'Le bon équipement ne se contente pas d’occuper une cuisine. Il donne à chaque geste sa pleine mesure.'),
  el('div',{className:'manifesto-foot'},strap('L’EXIGENCE SANS LE SUPERFLU'),link('Découvrir notre approche','/approche','text-arrow')));

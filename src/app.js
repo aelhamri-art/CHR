@@ -239,7 +239,7 @@ async function openForm(key,row=null){
  if(spec.readOnly)return;
  let relations={};
  for(const f of spec.fields){if(f.type==='relation')relations[f.name]=await api.getRelated(f.table,state.store.id);}
- const form=E('form',{className:'form-grid'});
+ const form=E('form',{className:'form-grid',id:'record-editor-form'});
  const controls=new Map();
  for(const f of spec.fields){
   const id='field-'+f.name;
@@ -258,7 +258,7 @@ async function openForm(key,row=null){
   controls.set(f.name,input);
   form.append(E('label',{className:'field '+(f.type==='boolean'?'check-field':'')},E('span',{},f.label),input));
  }
- const saveButton=E('button',{className:'btn accent',type:'submit'},row?'Enregistrer les modifications':'Créer et enregistrer');
+ const saveButton=E('button',{className:'btn accent',type:'submit',form:'record-editor-form'},row?'Enregistrer les modifications':'Créer et enregistrer');
  const dialog=E('dialog',{className:'modal',ariaLabel:(row?'Modifier ':'Créer ')+spec.label},
  E('div',{className:'dialog-head'},E('div',{},E('span',{className:'eyebrow'},'DONNÉES PERSISTANTES'),E('h2',{},(row?'Modifier ':'Créer ')+spec.label)),btn('✕',()=>dialog.close(),'icon-btn',{ariaLabel:'Fermer'})),
  form,E('div',{className:'dialog-footer'},btn('Annuler',()=>dialog.close()),saveButton));
@@ -349,7 +349,7 @@ async function renderSettings(){
  form.addEventListener('submit',async e=>{
   e.preventDefault();const f=new FormData(form);
   try{
-   const updated=await api.update('stores',store.id,store.id,{name:String(f.get('name')),currency:String(f.get('currency')).toUpperCase(),timezone:String(f.get('timezone'))});
+   const updated=await api.updateStore(store.id,{name:String(f.get('name')),currency:String(f.get('currency')).toUpperCase(),timezone:String(f.get('timezone'))});
    state.store=updated;state.stores=state.stores.map(s=>s.id===updated.id?updated:s);
    notice('Configuration mise à jour.','success');renderShell();
   }catch(err){notice(err.message,'error');}

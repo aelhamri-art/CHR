@@ -266,7 +266,7 @@ async function openForm(key,row=null){
    input=E('select',{id,name:f.name,required:!!f.required},
    !f.required?E('option',{value:''},'Non renseigné'):null,
    ...options.map(o=>E('option',{value:o.value,selected:o.value===v},o.label)));
-  }else if(f.type==='boolean')input=E('input',{id,type:'checkbox',name:f.name,checked:row?!!row[f.name]:false});
+  }else if(f.type==='boolean')input=E('input',{id,type:'checkbox',name:f.name,checked:row?!!row[f.name]:['requires_shipping','taxable','active','enabled','tax_shipping'].includes(f.name)});
   else if(f.type==='textarea'||f.type==='json'||f.type==='json_array') {
    input=E('textarea',{id,name:f.name,rows:f.type==='textarea'?4:5},v);
   }else input=E('input',{id,name:f.name,type:f.type==='email'?'email':f.type==='integer'?'number':f.type==='datetime'?'datetime-local':'text',
@@ -285,6 +285,7 @@ async function openForm(key,row=null){
    const payload={};
    for(const f of spec.fields){
     let value=normalizeField(f.type==='boolean'?controls.get(f.name).checked:controls.get(f.name).value,f);
+    if(f.name==='handle'&&!value&&controls.has('title'))value=slugify(controls.get('title').value);
     if(f.required&&(value===''||value===null))throw new Error(f.label+' est obligatoire.');
     payload[f.name]=value;
    }

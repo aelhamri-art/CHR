@@ -33,14 +33,14 @@ function settingsFields(current){
  const publish=E('input',{type:'checkbox',name:'published',checked:!!current.published});
  return {slug,brand,eyebrow,headline,subline,contact,image,legal,privacy,terms,publish};
 }
-export async function storefrontAdminPage(storeId,onSaved,notify){
+export async function storefrontAdminPage(storeId,onSaved,notify,storeSlug='chr'){
  const [data,products,media,quotes]=await Promise.all([
   api.list('storefront_settings',storeId),
   api.list('products',storeId),
   api.list('product_media',storeId),
   api.list('storefront_quotes',storeId).catch(()=>[])
  ]);
- const current=data[0]||{public_slug:'chr',brand_name:'CHR',published:false};
+ const current=data[0]||{public_slug:storeSlug,brand_name:'CHR',published:false};
  const f=settingsFields(current);
  const form=E('form',{className:'storefront-config'});
  const save=E('button',{type:'submit',className:'btn accent'},current.published?'Enregistrer et actualiser':'Enregistrer le brouillon');

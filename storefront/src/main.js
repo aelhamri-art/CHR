@@ -399,7 +399,7 @@ function authPage(mode='login'){
  const page=el('div',{className:'auth-layout'},
  el('aside',{className:'auth-visual'},
  el('span',{className:'auth-mark'},'C.'),el('div',{},strap('BIENVENUE CHEZ CHR'),el('h2',{},'Votre projet.',el('em',{},' Votre espace.')),bodyCopy('Retrouvez vos références, vos préférences et vos demandes dans un espace conçu pour les professionnels.'))),
- el('div',{className:'auth-card'});
+ el('div',{className:'auth-card'}));
  function switchMode(next){stateMode=next;renderForm();}
  function renderForm(){
   const title=stateMode==='signup'?'Créer votre espace':stateMode==='recover'?'Récupérer votre accès':'Connectez-vous.';

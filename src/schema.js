@@ -57,6 +57,17 @@ export const MODULES={
   columns:['name','active','address','created_at'],
   fields:[field('name','Nom','text',{required:true}),field('address','Adresse (JSON)','json'),field('active','Actif','boolean')]
  },
+ tax_rules:{
+  label:'Règles fiscales',section:'Finance',description:'TVA explicite selon pays. La création de commande exige une règle active.',
+  columns:['country','name','rate_basis_points','tax_shipping','active'],
+  fields:[
+   field('country','Pays ISO','text',{required:true,max:2}),
+   field('name','Intitulé','text',{required:true}),
+   field('rate_basis_points','TVA en points de base (2000 = 20 %)','integer',{min:0}),
+   field('tax_shipping','Taxer la livraison','boolean'),
+   field('active','Active','boolean')
+  ]
+ },
  inventory_levels:{
   label:'Niveaux de stock',section:'Stock',description:'Quantité physique et quantité réservée par variante et entrepôt.',
   columns:['variant_id','location_id','on_hand','reserved','updated_at'],fields:[],readOnly:true
@@ -150,7 +161,7 @@ export const MODULES={
 };
 export const GROUPS=[
  {label:'Vue générale',items:[['dashboard','Tableau de bord','layout-dashboard'],['orders','Commandes','shopping-bag'],['products','Produits','package'],['product_variants','Variantes','layers'],['collections','Collections','folder'],['collection_products','Associations','link']]},
- {label:'Exploitation',items:[['locations','Entrepôts','warehouse'],['inventory_levels','Stocks','boxes'],['inventory_movements','Mouvements','arrow-left-right'],['customers','Clients','users'],['shipping_profiles','Profils livraison','truck'],['shipping_zones','Zones','map'],['shipping_rates','Tarifs livraison','scale']]},
+ {label:'Exploitation',items:[['locations','Entrepôts','warehouse'],['inventory_levels','Stocks','boxes'],['inventory_movements','Mouvements','arrow-left-right'],['customers','Clients','users'],['shipping_profiles','Profils livraison','truck'],['shipping_zones','Zones','map'],['shipping_rates','Tarifs livraison','scale'],['tax_rules','Taxes et TVA','receipt']]},
  {label:'Commerce',items:[['discounts','Réductions','badge-percent'],['payment_transactions','Paiements','credit-card'],['refunds','Remboursements','receipt'],['order_lines','Lignes de commande','list'],['audit_events','Historique','shield-check']]},
  {label:'Système',items:[['settings','Paramètres','settings'],['action_requests','Intégration Aximus','sparkles']]}
 ];

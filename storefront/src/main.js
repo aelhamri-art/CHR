@@ -1,4 +1,5 @@
 import * as api from './api.js';
+import {createHeroSearch} from './hero-search.js';
 import {Cart} from './cart.js';
 import {euro,number,categoryName,imageUrl,clampQuantity,debounce} from './format.js';
 
@@ -146,24 +147,61 @@ let observer=null;
 if(typeof IntersectionObserver!=='undefined'&&!matchMedia('(prefers-reduced-motion: reduce)').matches){
  observer=new IntersectionObserver(entries=>{for(const entry of entries){if(entry.isIntersecting){entry.target.classList.add('revealed');observer.unobserve(entry.target);}}},{rootMargin:'0px 0px -35px 0px',threshold:0.08});
 }
+const HERO_STOCK="https://images.pexels.com/photos/28704740/pexels-photo-28704740.jpeg?auto=compress&cs=tinysrgb&w=2200";
+const EDITORIAL_STOCK="https://images.pexels.com/photos/24357591/pexels-photo-24357591.jpeg?auto=compress&cs=tinysrgb&w=1400";
 function hero(){
- const setting=state.settings;
- const heroImg=setting?.hero_image_path?imageUrl(api.supabaseUrl(),setting.hero_image_path):null;
- const visual=el('div',{className:'hero-visual'},
- heroImg?el('img',{src:heroImg,className:'hero-photo',alt:'Univers de la restauration professionnelle',fetchpriority:'high'}):
- el('div',{className:'hero-architecture',role:'img','aria-label':'Composition graphique architecturale'},
- el('div',{className:'architectural-grid'}),
- el('div',{className:'steel-column first'}),el('div',{className:'steel-column second'}),el('div',{className:'steel-column third'}),
- el('div',{className:'architecture-caption'},'FORME · FONCTION · EXIGENCE')),
- el('div',{className:'hero-stamp'},'C.',el('span',{},'PROFESSIONAL EDITION')));
- return section('hero','hero',
- el('div',{className:'hero-content'},
- strap(setting?.eyebrow||'L’ESSENTIEL DES CUISINES PROFESSIONNELLES'),
- el('h1',{},setting?.headline||'La précision au service de vos ambitions.'),
- el('p',{className:'hero-lead'},setting?.subline||'Des équipements choisis avec exigence. Une expérience pensée pour vous aider à décider plus vite et plus justement.'),
- el('div',{className:'hero-ctas'},link(el('span',{},'Explorer les équipements'),ico('arrow',20),'/catalogue','btn-primary'),link('Parler de votre projet','/projet','btn-outline')),
- el('div',{className:'hero-index'},el('span',{},'01 / UNE AUTRE FAÇON DE S’ÉQUIPER.'),el('span',{},'SCROLL TO EXPLORE ↓'))),
- visual);
+ const settings=state.settings;
+ const customImage=settings?.hero_image_path?imageUrl(api.supabaseUrl(),settings.hero_image_path):null;
+ const src=customImage||HERO_STOCK;
+ const photograph=el('img',{src,className:'hero-v2-photo',alt:'Cuisine professionnelle et équipements en inox, photographie d’ambiance',
+  fetchpriority:'high',decoding:'async','aria-hidden':'true'});
+ const search=createHeroSearch({
+  products:state.items,
+  onSearch:query=>{
+   state.search=query;state.category='Toutes';
+   nav('/catalogue?q='+encodeURIComponent(query));
+  },
+  onProduct:handle=>nav('/produit/'+encodeURIComponent(handle)),
+  formatPrice:value=>euro(value)
+ });
+ return section('hero','hero hero-v2',
+  el('div',{className:'hero-v2-backdrop','aria-hidden':'true'},photograph,el('div',{className:'hero-v2-overlay'})),
+  el('div',{className:'hero-v2-content'},
+   el('div',{className:'hero-v2-topline'},el('span',{className:'hero-v2-signal'}),'ÉQUIPEMENTS PROFESSIONNELS / CHR'),
+   el('div',{className:'hero-v2-main'},
+    el('h1',{},settings?.headline||'Le bon matériel.\nAu bon endroit.'),
+    el('p',{className:'hero-v2-lead'},settings?.subline||'Trouvez les équipements adaptés à votre métier, comparez ce qui compte et préparez votre prochain projet.'),
+    search,
+    el('div',{className:'hero-v2-undersearch'},
+     el('span',{},ico('search',16),'Recherchez par nom ou référence'),
+     el('span',{},ico('check',16),'Panier conservé sur cet appareil'),
+     el('span',{},ico('shield',16),'Devis sans paiement')
+    )
+   ),
+   el('div',{className:'hero-v2-footer'},
+    el('span',{},'CHRONIQUE DES CUISINES PROFESSIONNELLES'),
+    el('span',{},'DÉCOUVRIR ↓')
+   )
+  ),
+  el('div',{className:'hero-v2-photo-caption','aria-hidden':'true'},'DES OUTILS POUR DES MÉTIERS EXIGEANTS / CHR'));
+}
+function intentRail(){
+ const intentions=[
+  ['01','Je crée mon restaurant','Structurer ma sélection', '/projet','28704740'],
+  ['02','Je remplace mon matériel','Trouver une alternative','/catalogue','21077132'],
+  ['03','J’ai une référence en tête','Chercher immédiatement','/catalogue','24357591'],
+  ['04','J’équipe une cuisine','Préparer mon projet','/projet','30120987']
+ ];
+ return section('intentions','intent-rail',
+  el('div',{className:'intent-rail-label'},'PAR QUOI VOULEZ-VOUS COMMENCER ?'),
+  el('div',{className:'intent-rail-grid'},...intentions.map(([num,title,desc,path,photo])=>
+   el('a',{className:'intent-rail-card',href:'#'+path,'data-reveal':''},
+    el('img',{className:'intent-rail-image',src:'https://images.pexels.com/photos/'+photo+'/pexels-photo-'+photo+'.jpeg?auto=compress&cs=tinysrgb&w=900',loading:'lazy',decoding:'async',alt:''}),
+    el('span',{className:'intent-rail-index'},num),
+    el('h3',{},title),
+    el('div',{className:'intent-rail-bottom'},el('span',{},desc),ico('arrow',19))
+   )
+  )));
 }
 function intentSection(){
  const cats=categories().filter(c=>c!=='Toutes');
@@ -180,8 +218,9 @@ function intentSection(){
  link('Découvrir notre approche','/approche','text-arrow')));
 }
 function manifesto(){
- return section('philosophie','manifesto-section',
- el('div',{className:'manifesto-index'},'NOTRE CONVICTION / 001'),
+ return section('philosophie','manifesto-section manifesto-v2',
+ el('img',{className:'manifesto-photo',src:'https://images.pexels.com/photos/26733062/pexels-photo-26733062.jpeg?auto=compress&cs=tinysrgb&w=1800',loading:'lazy',decoding:'async',alt:'', 'aria-hidden':'true'}),
+ el('div',{className:'manifesto-index'},'UNE VISION MÉTIER / CHR'),
  el('blockquote',{className:'manifesto-quote','data-reveal':''},
  'Le bon équipement ne se contente pas d’occuper une cuisine. Il donne à chaque geste sa pleine mesure.'),
  el('div',{className:'manifesto-foot'},strap('L’EXIGENCE SANS LE SUPERFLU'),link('Découvrir notre approche','/approche','text-arrow')));
@@ -194,14 +233,16 @@ function bestsellers(){
  productGrid(groups,{max:4}));
 }
 function serviceSection(){
- return section('services','editorial-block',
- el('div',{className:'editorial-art','data-reveal':''},
- el('div',{className:'editorial-object'},el('div'),el('span',{},'UNE VISION PLUS CLAIRE')),
- el('div',{className:'editorial-vertical'},'PENSÉ POUR VOTRE MÉTIER')),
- el('div',{className:'editorial-copy','data-reveal':''},
- strap('VOTRE PROJET AVANT TOUT'),el('h2',{},'Plus qu’une référence.',el('em',{},' Une bonne décision.')),
- bodyCopy('Un achat professionnel engage votre activité. Comparez les caractéristiques utiles, sélectionnez vos références et préparez votre demande dans un espace unique.'),
- link(el('span',{},'Préparer mon projet'),ico('arrow',19),'/projet','btn-dark')));
+ return section('services','editorial-block editorial-block-v2',
+  el('div',{className:'editorial-art editorial-photo-panel','data-reveal':''},
+   el('img',{src:EDITORIAL_STOCK,alt:'Cuisinier au travail dans une cuisine professionnelle',loading:'lazy',decoding:'async',className:'editorial-photo'}),
+   el('div',{className:'editorial-photo-shade'}),
+   el('div',{className:'editorial-caption'},'AU SERVICE DU GESTE')
+  ),
+  el('div',{className:'editorial-copy','data-reveal':''},
+   strap('VOTRE PROJET AVANT TOUT'),el('h2',{},'Le matériel juste.',el('em',{},' Pour le geste juste.')),
+   bodyCopy('Vos contraintes sont concrètes. Explorez les références, comparez les caractéristiques disponibles et composez une sélection adaptée à votre projet.'),
+   link(el('span',{},'Préparer mon projet'),ico('arrow',19),'/projet','btn-dark')));
 }
 function servicePoints(){
  const content=[['01','CLARTÉ','Des fiches structurées pour comparer les informations réellement disponibles.'],
@@ -221,11 +262,12 @@ function closeSection(){
 }
 function home(){
  return el('div',{},!state.settings?el('div',{className:'status-banner',role:'status'},'Présentation en préparation · Catalogue non publié'):null,
- hero(),intentSection(),manifesto(),bestsellers(),serviceSection(),servicePoints(),closeSection());
+ hero(),intentRail(),intentSection(),manifesto(),bestsellers(),serviceSection(),servicePoints(),closeSection());
 }
 function catalogPage(){
  const params=new URLSearchParams(route().split('?')[1]||'');
  if(params.has('categorie'))state.category=params.get('categorie');
+ if(params.has('q')){state.search=(params.get('q')||'').slice(0,120);state.category='Toutes';}
  const filtered=()=> {
   const q=state.search.trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
   const group=products().filter(g=>{

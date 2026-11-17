@@ -187,15 +187,16 @@ function hero(){
 }
 function intentRail(){
  const intentions=[
-  ['01','Je crée mon restaurant','Structurer ma sélection', '/projet'],
-  ['02','Je remplace mon matériel','Trouver une alternative','/catalogue'],
-  ['03','J’ai une référence en tête','Chercher immédiatement','/catalogue'],
-  ['04','J’équipe une cuisine','Préparer mon projet','/projet']
+  ['01','Je crée mon restaurant','Structurer ma sélection', '/projet','28704740'],
+  ['02','Je remplace mon matériel','Trouver une alternative','/catalogue','21077132'],
+  ['03','J’ai une référence en tête','Chercher immédiatement','/catalogue','24357591'],
+  ['04','J’équipe une cuisine','Préparer mon projet','/projet','30120987']
  ];
  return section('intentions','intent-rail',
   el('div',{className:'intent-rail-label'},'PAR QUOI VOULEZ-VOUS COMMENCER ?'),
-  el('div',{className:'intent-rail-grid'},...intentions.map(([num,title,desc,path])=>
+  el('div',{className:'intent-rail-grid'},...intentions.map(([num,title,desc,path,photo])=>
    el('a',{className:'intent-rail-card',href:'#'+path,'data-reveal':''},
+    el('img',{className:'intent-rail-image',src:'https://images.pexels.com/photos/'+photo+'/pexels-photo-'+photo+'.jpeg?auto=compress&cs=tinysrgb&w=900',loading:'lazy',decoding:'async',alt:''}),
     el('span',{className:'intent-rail-index'},num),
     el('h3',{},title),
     el('div',{className:'intent-rail-bottom'},el('span',{},desc),ico('arrow',19))

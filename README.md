@@ -33,3 +33,15 @@ Serveur statique HTTPS possible après audit et configuration des URL de redirec
 - `.github/workflows/ci.yml` : vérifications du code.
 
 **Statut honnête :** ce dépôt ne représente pas une reproduction fonctionnelle de 100 % de Shopify Admin. Les modules nécessitent une recette utilisateur authentifiée avant GO commercial.
+
+## Storefront client CHR (premier vertical slice)
+
+- Site client indépendant dans `storefront/`, administration dans la racine du dépôt.
+- Lancer `npm run serve` à la racine puis ouvrir `http://localhost:8080/storefront/`.
+- Branding public et publication contrôlés depuis l'admin, menu **Boutique client**.
+- L'accès public est bloqué par défaut jusqu'à la validation des vrais contenus, assets et documents obligatoires.
+- Compte client, adresses, favoris, panier persistant, demandes de devis stockées dans Supabase.
+- Aucun paiement bancaire ou carte enregistrée réellement disponible sans activation et audit du PSP.
+- Tests `npm run verify` et workflow `CHR Storefront Visual QA` (Chromium + captures).
+- Rapport : `docs/STOREFRONT_RELEASE_REPORT_2026-11-17.md`.
+- **Pas de parité Shopify Admin ni d'expérience commerciale complète certifiée à ce stade.**

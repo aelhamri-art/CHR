@@ -133,3 +133,13 @@ export async function deletePublicFile(bucket,path){
   headers:{apikey:KEY,Authorization:'Bearer '+auth.access_token}});
  if(!response.ok){const data=await response.json().catch(()=>null);throw new ApiError(data?.message||'Suppression refusée.',response.status);}
 }
+
+/** Storefront settings are owner/manager-write via RLS; public publication gate is enforced in SQL. */
+export async function saveStorefrontSettings(storeId,record){
+ const data=await request('/rest/v1/storefront_settings',{
+  method:'POST',params:{on_conflict:'store_id'},headers:{Prefer:'resolution=merge-duplicates,return=representation'},
+  body:{...record,store_id:storeId}
+ });
+ if(!data?.length)throw new ApiError('Publication ou modification refusée par Supabase.',403);
+ return data[0];
+}

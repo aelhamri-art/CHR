@@ -29,4 +29,5 @@ jobs:
             index.html
             config.js
             src/
+            storefront/
           retention-days: 7

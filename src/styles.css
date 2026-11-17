@@ -70,3 +70,9 @@ input:focus,select:focus,textarea:focus{border-color:#d28056;box-shadow:0 0 0 3p
 .workflow-lines{display:grid;gap:8px}.workflow-line{display:grid;grid-template-columns:minmax(170px,1fr) 100px auto;gap:8px}
 .workflow-form button[type=submit]{margin-top:5px}.danger-btn{border-color:#e7b9b9;color:#9c4444}
 @media(max-width:550px){.workflow-card{padding:15px}.workflow-field{width:100%}.workflow-line{grid-template-columns:1fr 85px auto}.workflow-line .btn{padding:8px}}
+
+.media-form{display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap}.media-form label{display:grid;gap:7px;font-size:12px;font-weight:700;color:#666}.media-form input,.media-form select{min-height:39px;font-size:12px}
+.media-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(185px,1fr));gap:17px;margin:18px 0}
+.media-card{background:#fff;border:1px solid #e4e7df;border-radius:12px;overflow:hidden}
+.media-card img{height:170px;width:100%;object-fit:cover;background:#f0f1ee}
+.media-card-body{padding:14px;display:grid;gap:8px;font-size:12px}.media-card-body small{color:#8b9289}

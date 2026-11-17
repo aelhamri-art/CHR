@@ -325,9 +325,10 @@ function cartPage(){
    button('Retirer',()=>{cart.remove(variant_id);update();},'text-link'))));
   }));
   if(!cart.count()||!items.children.length)items.append(emptyResult('Votre sélection est vide','Explorez le catalogue pour composer votre projet.'));
-  subtotal.textContent=euro(cart.subtotal(state.items))+' HT';refreshCounts();
+  subtotal.textContent=euro(cart.subtotal(state.items))+' HT';requestBtn.disabled=!cart.lines(state.items).length||!state.settings?.published;refreshCounts();
  }
  const requestBtn=button('Demander un devis',()=>nav('/devis'),'btn-dark full-width','arrow');
+ requestBtn.disabled=!lines.length||!state.settings?.published;
  const summary=el('aside',{className:'basket-summary'},strap('VOTRE SÉLECTION'),el('h2',{},'Le récapitulatif'),
  el('div',{className:'subtotal-row'},'Sous-total des références',subtotal),totalNote,
  requestBtn,el('p',{className:'payment-notice'},'Le règlement en ligne sera proposé après activation et validation du prestataire de paiement.'));
@@ -530,7 +531,9 @@ async function accountPage(){
 }
 function route(){return decodeURI(location.hash.replace(/^#/,''))||'/';}
 function refreshCounts(){root.querySelectorAll('.cart-count').forEach(n=>n.textContent=String(cart.count()));}
+let renderSequence=0;
 async function render(){
+ const sequence=++renderSequence;
  const r=route();
  if(r==='/compte'&&state.user&&state.settings){try{await loadPersonal();}catch(e){notify(e.message,'error');}}
  const scroll=window.scrollY;
@@ -548,6 +551,7 @@ async function render(){
  else if(r==='/inscription')view=authPage('signup');
  else if(r==='/compte')view=await accountPage();
  else view=el('div',{className:'page-container error-page'},el('h1',{},'Cette page n’existe pas.'),link('Retour à l’accueil','/','btn-dark'));
+ if(sequence!==renderSequence)return;
  shell(view);refreshCounts();
  if(state.lastRoute!==r){window.scrollTo({top:0,behavior:'auto'});state.lastRoute=r;}
  else if(scroll)window.scrollTo(0,scroll);

@@ -1,5 +1,6 @@
 import * as api from './api.js';
 import {ordersPanel} from './orders.js';
+import {mediaPage} from './media.js';
 import {MODULES,GROUPS} from './schema.js';
 import {parseMoney,parseInteger,formatMoney,listText,textList,jsonInput,slugify,exportCsv} from './rules.js';
 
@@ -151,6 +152,11 @@ async function renderPage(){
  try{
   if(route==='dashboard')return await renderDashboard();
   if(route==='settings')return await renderSettings();
+  if(route==='media'){
+   const page=await mediaPage(state.store.id,renderPage,notice);
+   if(state.route==='media')setMain(page);
+   return;
+  }
   if(route==='orders') {
    await renderModule('orders');
    if(state.route==='orders'){

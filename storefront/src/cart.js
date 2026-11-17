@@ -19,5 +19,12 @@ export class Cart {
   .map(([id,quantity])=>({product:byId.get(id),variant_id:id,quantity}))
   .filter(line=>!!line.product);}
  subtotal(catalog){return this.lines(catalog).reduce((a,line)=>a+line.product.price_minor*line.quantity,0);}
+ prune(catalog){
+  const valid=new Set(catalog.map(x=>x.variant_id));
+  let changed=false;
+  for(const id of Object.keys(this.items))if(!valid.has(id)){delete this.items[id];changed=true;}
+  if(changed)this.emit();
+  return changed;
+ }
  merge(values){for(const [id,quantity] of Object.entries(values||{})){if(/^[a-f0-9-]{36}$/i.test(id))this.items[id]=Math.min(999,Math.max(this.items[id]||0,clampQuantity(quantity)));}this.emit();}
 }

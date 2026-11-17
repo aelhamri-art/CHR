@@ -57,7 +57,12 @@ function nav(route){const target=route.replace(/^#?/,'');if(location.hash!=='#'+
 function button(label,handler,cls='btn',icon=null){
  return el('button',{type:'button',className:cls,onClick:handler},label,icon?ico(icon,18):null);
 }
-function link(label,hash,cls=''){return el('a',{href:'#'+hash,className:cls},label);}
+function link(label,hashOrIcon,hashOrClass='',className=''){
+ const withIcon=hashOrIcon instanceof Node;
+ const hash=withIcon?hashOrClass:hashOrIcon;
+ const cls=withIcon?className:hashOrClass;
+ return el('a',{href:'#'+hash,className:cls},label,withIcon?hashOrIcon:null);
+}
 function section(id,cls,...content){return el('section',{id,className:cls},...content);}
 function strap(title){return el('div',{className:'eyebrow'},el('i',{className:'dot'}),title);}
 function bodyCopy(text){return el('p',{className:'copy'},text);}

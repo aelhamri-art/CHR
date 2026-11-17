@@ -419,7 +419,7 @@ function authPage(mode='login'){
    try{
     if(stateMode==='signup'){await api.signup(email.value.trim(),password.value);notify('Compte demandé. Vérifiez votre boîte e-mail pour confirmer votre adresse.','success');switchMode('login');return;}
     if(stateMode==='recover'){await api.recover(email.value.trim());notify('Si ce compte existe, un lien de récupération a été envoyé.','success');switchMode('login');return;}
-    await api.login(email.value.trim(),password.value);state.user=await api.user();state.settings=await api.settings(SITE_SLUG);state.items=state.settings?await api.catalog(state.settings.store_id):[];await loadPersonal();notify('Vous êtes connecté.','success');nav('/compte');
+    await api.login(email.value.trim(),password.value);state.user=await api.user();state.settings=await api.settings(SITE_SLUG);state.items=state.settings?await api.catalog(state.settings.store_id):[];if(state.settings?.published)cart.prune(state.items);await loadPersonal();notify('Vous êtes connecté.','success');nav('/compte');
    }catch(error){notify(error.message,'error');}
    finally{submit.disabled=false;}
   }},field('Adresse e-mail',email),password?field('Mot de passe',password):null,submit);
@@ -585,6 +585,7 @@ async function boot(){
   state.settings=settings.value;
   state.user=user.status==='fulfilled'?user.value:null;
   state.items=state.settings?await api.catalog(state.settings.store_id):[];
+  if(state.settings?.published)cart.prune(state.items);
   if(state.user&&state.settings)await loadPersonal();
   await render();
  }catch(e){

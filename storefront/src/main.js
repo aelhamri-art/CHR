@@ -169,7 +169,7 @@ function hero(){
   el('div',{className:'hero-v2-content'},
    el('div',{className:'hero-v2-topline'},el('span',{className:'hero-v2-signal'}),'ÉQUIPEMENTS PROFESSIONNELS / CHR'),
    el('div',{className:'hero-v2-main'},
-    el('h1',{},settings?.headline||'Le bon matériel.\\nAu bon endroit.'),
+    el('h1',{},settings?.headline||'Le bon matériel.\nAu bon endroit.'),
     el('p',{className:'hero-v2-lead'},settings?.subline||'Trouvez les équipements adaptés à votre métier, comparez ce qui compte et préparez votre prochain projet.'),
     search,
     el('div',{className:'hero-v2-undersearch'},

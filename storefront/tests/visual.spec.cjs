@@ -55,3 +55,37 @@ test.describe('CHR storefront first-view smoke',()=>{
   expect(['A','BUTTON','INPUT']).toContain(focused);
  });
 });
+
+
+test('V2 hero: real photo, animated hint focus safety and working search routing',async({page})=>{
+ const errors=[];
+ page.on('pageerror',e=>errors.push(e.message));
+ await page.setViewportSize({width:1440,height:900});
+ await page.goto('/storefront/',{waitUntil:'domcontentloaded'});
+ const image=page.locator('.hero-v2-photo');
+ await expect(image).toBeVisible({timeout:14000});
+ await expect(page.locator('.search-orbit')).toBeVisible();
+ const input=page.locator('#hero-query');
+ await input.focus();
+ await input.fill('four professionnel');
+ await expect(input).toHaveValue('four professionnel');
+ await expect(page.locator('.search-typewriter')).toBeHidden();
+ await input.press('Enter');
+ await expect(page.locator('.catalog-page h1')).toBeVisible();
+ await expect(page.locator('.catalog-search')).toHaveValue('four professionnel');
+ expect(errors).toEqual([]);
+});
+test('V2 mobile hero fits 320px, search and rail have no horizontal overflow',async({page})=>{
+ await page.setViewportSize({width:320,height:680});
+ await page.goto('/storefront/',{waitUntil:'domcontentloaded'});
+ await expect(page.locator('.hero-v2-photo')).toBeVisible({timeout:14000});
+ await expect(page.locator('.search-orbit-form')).toBeVisible();
+ await expect(page.locator('.intent-rail')).toBeVisible();
+ const metrics=await page.evaluate(()=>({
+  overflow:document.documentElement.scrollWidth - innerWidth,
+  searchWidth:document.querySelector('.search-orbit-form').getBoundingClientRect().width,
+  pageWidth:innerWidth
+ }));
+ expect(metrics.overflow).toBeLessThanOrEqual(2);
+ expect(metrics.searchWidth).toBeLessThanOrEqual(metrics.pageWidth);
+});

@@ -54,7 +54,7 @@ export async function user(){
 }
 export async function logout(){try{if(session?.access_token)await call('/auth/v1/logout',{method:'POST'});}finally{setSession(null);}}
 export async function settings(slug){
- const data=await call('/rest/v1/storefront_settings',{params:{public_slug:'eq.'+slug,select:'store_id,public_slug,brand_name,eyebrow,headline,subline,contact_email,hero_image_path,published',limit:1}});
+ const data=await call('/rest/v1/storefront_settings',{params:{public_slug:'eq.'+slug,select:'store_id,public_slug,brand_name,eyebrow,headline,subline,contact_email,hero_image_path,published,legal_notice,privacy_policy,terms_of_sale',limit:1}});
  return data?.[0]||null;
 }
 export async function catalog(storeId){

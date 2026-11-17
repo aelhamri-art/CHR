@@ -169,7 +169,7 @@ function intentSection(){
  href:'#/catalogue?categorie='+encodeURIComponent(cat),className:'category-tile category-'+(i%4),'data-reveal':''},
  el('span',{className:'category-index'},String(i+1).padStart(2,'0')),
  el('div',{className:'category-art'},el('span',{},staticCategoryIcons[cat]||'◇')),
- el('div',{className:'category-title'},cat,ico('arrow',20)))):el('div',{className:'category-placeholder'},
+ el('div',{className:'category-title'},cat,ico('arrow',20))))):el('div',{className:'category-placeholder'},
  el('span',{className:'category-placeholder-symbol'},'C / 01'),
  el('div',{},el('h3',{},'Une sélection qui se construit avec précision.'),bodyCopy('Les univers et les produits seront visibles dès que leur catalogue et leurs visuels auront été validés.')),
  link('Découvrir notre approche','/approche','text-arrow')));

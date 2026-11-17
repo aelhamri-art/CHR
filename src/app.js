@@ -310,7 +310,7 @@ async function openReadOnly(key,row){
  E('div',{className:'dialog-head'},E('h2',{},'Détails · '+(MODULES[key]?.label||key)),
  btn('✕',()=>dialog.close(),'icon-btn',{ariaLabel:'Fermer'})),
  E('dl',{className:'detail-list'},...Object.entries(row).map(([k,v])=>
- E('div',{},E('dt',{},columnLabel(k)),E('dd',{},typeof v==='object'&&v!==null?JSON.stringify(v):formatCell(v,k,key)))));
+ E('div',{},E('dt',{},columnLabel(k)),E('dd',{},typeof v==='object'&&v!==null?JSON.stringify(v):formatCell(v,k,key))))));
  document.body.append(dialog);dialog.addEventListener('close',()=>dialog.remove());
  if(key==='orders'){
   try{

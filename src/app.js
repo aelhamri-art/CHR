@@ -1,4 +1,5 @@
 import * as api from './api.js';
+import {ordersPanel} from './orders.js';
 import {MODULES,GROUPS} from './schema.js';
 import {parseMoney,parseInteger,formatMoney,listText,textList,jsonInput,slugify,exportCsv} from './rules.js';
 
@@ -150,6 +151,14 @@ async function renderPage(){
  try{
   if(route==='dashboard')return await renderDashboard();
   if(route==='settings')return await renderSettings();
+  if(route==='orders') {
+   await renderModule('orders');
+   if(state.route==='orders'){
+    const workflows=await ordersPanel(state.store.id,renderPage,notice);
+    document.getElementById('main-content')?.append(workflows);
+   }
+   return;
+  }
   if(MODULES[route])return await renderModule(route);
   state.route='dashboard';return renderDashboard();
  }catch(e){setMain(errorView(e));}
@@ -232,6 +241,7 @@ function normalizeField(val,f){
  if(f.type==='json_array')return jsonInput(val,'array');
  if(f.type==='datetime')return new Date(val).toISOString();
  if(f.type==='slug')return slugify(val);
+ if(f.name==='country')return String(val).trim().toUpperCase();
  return String(val).trim();
 }
 async function openForm(key,row=null){

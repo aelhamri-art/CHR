@@ -6,6 +6,7 @@ Source Pexels (photographies libres pour utilisation commerciale selon la licenc
 
 - Hero : https://www.pexels.com/photo/commercial-kitchen-with-stainless-steel-equipment-28704740/
 - Editorial : https://www.pexels.com/photo/cook-working-in-restaurant-kitchen-24357591/
+- Manifeste photo : https://www.pexels.com/photo/cook-preparing-food-in-kitchen-26733062/
 - Intention : https://www.pexels.com/photo/a-kitchen-in-a-restaurant-21077132/
 - Intention : https://www.pexels.com/photo/professional-chefs-working-in-restaurant-kitchen-30120987/
 

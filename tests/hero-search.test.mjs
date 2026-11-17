@@ -19,8 +19,8 @@ test('never creates fake suggestions when catalog is unpublished or empty',()=>{
 });
 test('search suggestions deduplicate variants and honor maximum',()=>{
  const repeated=[...variants,variants[0],variants[1]];
- assert.equal(findSuggestions(repeated,'a').length,3);
- assert.equal(findSuggestions(repeated,'a',1).length,1);
+ assert.equal(findSuggestions(repeated,'e').length,3);
+ assert.equal(findSuggestions(repeated,'e',1).length,1);
 });
 test('rotating examples are visible, descriptive, not invented products',()=>{
  assert.equal(ROTATIONS.length,4);

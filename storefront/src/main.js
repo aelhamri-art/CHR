@@ -261,6 +261,7 @@ function productPage(handle){
  if(!group)return el('div',{className:'page-container error-page'},strap('RÉFÉRENCE INTROUVABLE'),
  el('h1',{},'Ce produit n’est pas disponible.'),bodyCopy('Il a peut-être été retiré du catalogue.'),link('Retour au catalogue','/catalogue','btn-dark'));
  const p=group[0];
+ if(!group.some(item=>item.variant_id===state.productVariant))state.productVariant=p.variant_id;
  const selected=state.productVariant&&group.find(x=>x.variant_id===state.productVariant)||p;
  const media=el('div',{className:'detail-picture'},picture(p,'detail-image'),
  el('span',{className:'detail-photo-label'},p.category||'ÉQUIPEMENT PROFESSIONNEL'));
@@ -384,9 +385,11 @@ function contactPage(){
 }
 function legalPage(type){
  const confidentiality=type==='confidentialite';
+ const approved=confidentiality?state.settings?.privacy_policy:state.settings?.terms_of_sale;
+ const legal=state.settings?.legal_notice;
  return el('div',{className:'page-container information-page'},strap('INFORMATIONS'),el('h1',{},confidentiality?'Confidentialité':'Conditions de vente'),
- el('p',{className:'notice'},'Document légal en cours de validation par CHR. La vente en ligne n’est pas activée.'),
- bodyCopy('Les informations légales complètes devront être validées et publiées avant toute ouverture commerciale.'),
+ approved?el('div',{className:'legal-text'},...approved.split(/\n{2,}/).map(s=>el('p',{},s))):el('p',{className:'notice'},'Document légal en cours de validation par CHR. La vente en ligne n’est pas activée.'),
+ legal?el('details',{},el('summary',{},'Mentions légales'),el('div',{className:'legal-text'},...legal.split(/\n{2,}/).map(s=>el('p',{},s)))):null,
  link('Retour à l’accueil','/','text-arrow'));
 }
 function formInput(label,name,type='text',value='',extra={}){return field(label,el('input',{name,type,value,...extra}));}
@@ -409,7 +412,7 @@ function authPage(mode='login'){
    try{
     if(stateMode==='signup'){await api.signup(email.value.trim(),password.value);notify('Compte demandé. Vérifiez votre boîte e-mail pour confirmer votre adresse.','success');switchMode('login');return;}
     if(stateMode==='recover'){await api.recover(email.value.trim());notify('Si ce compte existe, un lien de récupération a été envoyé.','success');switchMode('login');return;}
-    await api.login(email.value.trim(),password.value);state.user=await api.user();await loadPersonal();notify('Vous êtes connecté.','success');nav('/compte');
+    await api.login(email.value.trim(),password.value);state.user=await api.user();state.settings=await api.settings(SITE_SLUG);state.items=state.settings?await api.catalog(state.settings.store_id):[];await loadPersonal();notify('Vous êtes connecté.','success');nav('/compte');
    }catch(error){notify(error.message,'error');}
    finally{submit.disabled=false;}
   }},field('Adresse e-mail',email),password?field('Mot de passe',password):null,submit);
@@ -448,6 +451,7 @@ async function toggleWish(id){
 }
 async function accountPage(){
  if(!state.user)return authPage('login');
+ if(!state.settings?.store_id)return el('div',{className:'page-container information-page'},strap('ESPACE EN PRÉPARATION'),el('h1',{},'Boutique non ouverte.'),bodyCopy('Votre connexion est active. Le profil commercial sera disponible à la publication de la boutique.'));
  const profile=state.profile||{};
  const first=el('input',{name:'first_name',value:profile.first_name||'',autocomplete:'given-name'});
  const last=el('input',{name:'last_name',value:profile.last_name||'',autocomplete:'family-name'});
@@ -539,7 +543,7 @@ async function render(){
  else if(r==='/compte')view=await accountPage();
  else view=el('div',{className:'page-container error-page'},el('h1',{},'Cette page n’existe pas.'),link('Retour à l’accueil','/','btn-dark'));
  shell(view);refreshCounts();
- if(state.lastRoute!==r){scrollTo({top:0,behavior:'instant'});state.lastRoute=r;}
+ if(state.lastRoute!==r){window.scrollTo({top:0,behavior:'auto'});state.lastRoute=r;}
  else if(scroll)window.scrollTo(0,scroll);
 }
 function setupCartSync(){

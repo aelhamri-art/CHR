@@ -8,8 +8,8 @@ test.describe('CHR storefront first-view smoke',()=>{
   await expect(page.locator('.hero h1')).toBeVisible({timeout:12000});
   await expect(page.locator('.site-header')).toBeVisible();
   await page.screenshot({path:'artifacts/chr-desktop.png',fullPage:true,animations:'disabled'});
-  await expect(page.locator('.hero-ctas a').first()).toHaveAttribute('href','#/catalogue');
-  await page.locator('.hero-ctas a').first().click();
+  await expect(page.locator('.header-nav a[href="#/catalogue"]')).toBeVisible();
+  await page.locator('.header-nav a[href="#/catalogue"]').click();
   await expect(page.locator('.catalog-page h1')).toBeVisible();
   const invisible=await page.locator('[data-reveal]').evaluateAll(nodes=>nodes.filter(n=>getComputedStyle(n).opacity==='0').length);
   expect(invisible,'editorial sections must never be hidden before scroll').toBe(0);

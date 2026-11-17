@@ -21,3 +21,12 @@ jobs:
           if grep -rE --exclude-dir=.git '(service_role|sb_secret_)' config.js src; then
             echo 'Forbidden server-side key reference'; exit 1
           fi
+      - name: Package independent static preview
+        uses: actions/upload-artifact@v4
+        with:
+          name: axium-chr-static-preview
+          path: |
+            index.html
+            config.js
+            src/
+          retention-days: 7

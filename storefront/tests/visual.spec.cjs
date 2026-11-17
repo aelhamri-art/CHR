@@ -7,6 +7,15 @@ test.describe('CHR storefront first-view smoke',()=>{
   await page.goto('/storefront/',{waitUntil:'domcontentloaded'});
   await expect(page.locator('.hero h1')).toBeVisible({timeout:12000});
   await expect(page.locator('.site-header')).toBeVisible();
+  // Full-page screenshots must exercise below-the-fold lazy media before capture.
+  for (const selector of ['.intent-rail-image','.manifesto-photo','.editorial-photo']) {
+    const image=page.locator(selector).first();
+    if(await image.count()){
+      await image.scrollIntoViewIfNeeded();
+      await expect.poll(()=>image.evaluate(img=>img.complete&&img.naturalWidth>0),{timeout:15000}).toBe(true);
+    }
+  }
+  await page.evaluate(()=>window.scrollTo(0,0));
   await page.screenshot({path:'artifacts/chr-desktop.png',fullPage:true,animations:'disabled'});
   await expect(page.locator('.header-nav a[href="#/catalogue"]')).toBeVisible();
   await page.locator('.header-nav a[href="#/catalogue"]').click();
@@ -24,6 +33,11 @@ test.describe('CHR storefront first-view smoke',()=>{
   await expect(page.locator('.mobile-bottom')).toBeVisible();
   const overflow=await page.evaluate(()=>document.documentElement.scrollWidth-innerWidth);
   expect(overflow,'page must not horizontally overflow on mobile').toBeLessThanOrEqual(2);
+  for (const selector of ['.intent-rail-image','.manifesto-photo','.editorial-photo']) {
+    const image=page.locator(selector).first();
+    if(await image.count()){await image.scrollIntoViewIfNeeded();await expect.poll(()=>image.evaluate(img=>img.complete&&img.naturalWidth>0),{timeout:15000}).toBe(true);}
+  }
+  await page.evaluate(()=>window.scrollTo(0,0));
   await page.screenshot({path:'artifacts/chr-mobile.png',fullPage:true,animations:'disabled'});
   await page.locator('.mobile-bottom a[href="#/panier"]').click();
   await expect(page.locator('.basket-page h1')).toBeVisible();

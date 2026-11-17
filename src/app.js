@@ -155,7 +155,7 @@ async function renderPage(){
   if(route==='dashboard')return await renderDashboard();
   if(route==='settings')return await renderSettings();
   if(route==='storefront'){
-   const page=await storefrontAdminPage(state.store.id,renderPage,notice);
+   const page=await storefrontAdminPage(state.store.id,renderPage,notice,state.store.slug);
    if(state.route==='storefront')setMain(page);
    return;
   }

@@ -353,13 +353,13 @@ async function renderSettings(){
  const store=state.store;
  const form=E('form',{className:'form-grid'},
  E('label',{className:'field'},E('span',{},'Nom de l’entreprise'),E('input',{name:'name',value:store.name,required:true})),
- E('label',{className:'field'},E('span',{},'Devise ISO'),E('input',{name:'currency',value:store.currency,required:true,maxLength:3})),
+ E('label',{className:'field'},E('span',{},'Devise ISO'),E('input',{name:'currency',value:store.currency,required:true,maxLength:3,readOnly:true,title:'Monnaie de référence fixée lors de la création du store'})),
  E('label',{className:'field'},E('span',{},'Fuseau horaire'),E('input',{name:'timezone',value:store.timezone,required:true})),
  E('button',{type:'submit',className:'btn accent'},'Enregistrer'));
  form.addEventListener('submit',async e=>{
   e.preventDefault();const f=new FormData(form);
   try{
-   const updated=await api.updateStore(store.id,{name:String(f.get('name')),currency:String(f.get('currency')).toUpperCase(),timezone:String(f.get('timezone'))});
+   const updated=await api.updateStore(store.id,{name:String(f.get('name')),timezone:String(f.get('timezone'))});
    state.store=updated;state.stores=state.stores.map(s=>s.id===updated.id?updated:s);
    notice('Configuration mise à jour.','success');renderShell();
   }catch(err){notice(err.message,'error');}

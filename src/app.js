@@ -1,6 +1,7 @@
 import * as api from './api.js';
 import {ordersPanel} from './orders.js';
 import {mediaPage} from './media.js';
+import {importPage} from './import.js';
 import {MODULES,GROUPS} from './schema.js';
 import {parseMoney,parseInteger,formatMoney,listText,textList,jsonInput,slugify,exportCsv} from './rules.js';
 
@@ -152,6 +153,7 @@ async function renderPage(){
  try{
   if(route==='dashboard')return await renderDashboard();
   if(route==='settings')return await renderSettings();
+  if(route==='import'){setMain(importPage(state.store.id,renderPage,notice));return;}
   if(route==='media'){
    const page=await mediaPage(state.store.id,renderPage,notice);
    if(state.route==='media')setMain(page);

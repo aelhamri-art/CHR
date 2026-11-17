@@ -209,8 +209,8 @@ async function renderModule(key){
  const renderRows=()=>{
   const displayed=tableData(rows,filter.value);
   tbody.replaceChildren(...displayed.map(row=>E('tr',{},...spec.columns.map(col=>E('td',{},E('span',{className:col==='status'?'pill':''},formatCell(row[col],col,key)))),
- E('td',{className:'row-actions'},spec.readOnly?E('span',{className:'micro'},'Consultation'):E('div',{className:'action-inline'},
- btn('Modifier',()=>openForm(key,row),'text-btn'),
+ E('td',{className:'row-actions'},spec.readOnly?btn('Détails',()=>openReadOnly(key,row),'text-btn'):E('div',{className:'action-inline'},
+ ...(spec.key==='composite'?[]:[btn('Modifier',()=>openForm(key,row),'text-btn')]),
  btn(key==='products'?'Archiver':'Supprimer',()=>deleteRecord(key,row),'text-btn danger'))))));
   counter.textContent=displayed.length+' / '+rows.length+' enregistrement(s)';
  };
@@ -305,6 +305,23 @@ async function openForm(key,row=null){
  });
  dialog.showModal();
 }
+async function openReadOnly(key,row){
+ const dialog=E('dialog',{className:'modal',ariaLabel:'Détails '+key},
+ E('div',{className:'dialog-head'},E('h2',{},'Détails · '+(MODULES[key]?.label||key)),
+ btn('✕',()=>dialog.close(),'icon-btn',{ariaLabel:'Fermer'})),
+ E('dl',{className:'detail-list'},...Object.entries(row).map(([k,v])=>
+ E('div',{},E('dt',{},columnLabel(k)),E('dd',{},typeof v==='object'&&v!==null?JSON.stringify(v):formatCell(v,k,key)))));
+ document.body.append(dialog);dialog.addEventListener('close',()=>dialog.remove());
+ if(key==='orders'){
+  try{
+   const lines=await api.list('order_lines',state.store.id,{limit:500,filters:{order_id:'eq.'+row.id}});
+   dialog.append(E('h3',{},'Lignes'),...lines.map(line=>
+   E('p',{className:'detail-line'},line.product_title+' · '+(line.sku||'—')+' · '+line.quantity+' × '+formatMoney(line.unit_price_minor))));
+  }catch(error){dialog.append(E('p',{className:'error'},error.message));}
+ }
+ dialog.showModal();
+}
+
 async function deleteRecord(key,row){
  if(!confirm(key==='products'?'Archiver ce produit ?':'Supprimer définitivement cet enregistrement ?'))return;
  try {

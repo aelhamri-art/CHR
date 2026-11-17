@@ -452,7 +452,7 @@ async function toggleWish(id){
 }
 async function accountPage(){
  if(!state.user)return authPage('login');
- if(!state.settings?.store_id)return el('div',{className:'page-container information-page'},strap('ESPACE EN PRÉPARATION'),el('h1',{},'Boutique non ouverte.'),bodyCopy('Votre connexion est active. Le profil commercial sera disponible à la publication de la boutique.'));
+ if(!state.settings?.store_id||!state.settings.published)return el('div',{className:'page-container information-page'},strap('ESPACE EN PRÉPARATION'),el('h1',{},'Boutique non ouverte.'),bodyCopy('Votre connexion est active. Les profils clients sont disponibles après publication de la boutique.'));
  const profile=state.profile||{};
  const first=el('input',{name:'first_name',value:profile.first_name||'',autocomplete:'given-name'});
  const last=el('input',{name:'last_name',value:profile.last_name||'',autocomplete:'family-name'});

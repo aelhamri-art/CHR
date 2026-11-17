@@ -61,3 +61,12 @@ input:focus,select:focus,textarea:focus{border-color:#d28056;box-shadow:0 0 0 3p
 @media(max-width:760px){.shell{display:block}.sidebar{position:fixed;top:0;bottom:0;left:0;width:260px;z-index:50;transform:translateX(-100%);transition:transform .22s;box-shadow:8px 0 40px #0002}.sidebar.open{transform:translateX(0)}.menu-btn{display:block}.topbar{height:58px;padding:0 13px}.top-right{gap:8px}.top-right .chip{display:none}.store-switch select{min-width:100px;max-width:160px}.main{padding:20px 12px}.page-header{align-items:flex-start;flex-direction:column;gap:14px}.panel{padding:15px}.metric{padding:17px}.form-grid{grid-template-columns:1fr}.modal{padding:18px}.dialog-head{margin-bottom:15px}.auth-box{padding:26px}.page-actions{width:100%}}
 @media(max-width:430px){.metric-grid{grid-template-columns:1fr 1fr;gap:9px}.metric{padding:13px}.metric strong{font-size:23px}.table-toolbar{flex-direction:column;align-items:stretch}.inline-form label,.inline-form input,.inline-form select{width:100%;max-width:none}.page-actions .btn{flex:1}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+
+.workflow-zone{margin-top:24px;display:grid;gap:15px}.workflow-zone>h2{margin-bottom:0;font-size:17px}
+.workflow-card{background:#fff;border:1px solid #e7e9e3;border-radius:12px;padding:21px}
+.workflow-card h3{margin:0 0 9px;font-size:15px}.workflow-form{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end}
+.workflow-field{display:grid;gap:7px;min-width:155px;font-size:12px;font-weight:700;color:#5b635c}
+.workflow-field input,.workflow-field select{width:100%;font-size:12px}.workflow-form>.workflow-field:has(.workflow-lines){width:100%}
+.workflow-lines{display:grid;gap:8px}.workflow-line{display:grid;grid-template-columns:minmax(170px,1fr) 100px auto;gap:8px}
+.workflow-form button[type=submit]{margin-top:5px}.danger-btn{border-color:#e7b9b9;color:#9c4444}
+@media(max-width:550px){.workflow-card{padding:15px}.workflow-field{width:100%}.workflow-line{grid-template-columns:1fr 85px auto}.workflow-line .btn{padding:8px}}

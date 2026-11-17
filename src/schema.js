@@ -36,7 +36,7 @@ export const MODULES={
   label:'Collections',section:'Catalogue',description:'Regroupements manuels et conditions de classement.',
   columns:['title','type','status','handle','updated_at'],
   fields:[
-   field('title','Nom','text',{required:true}),field('handle','Identifiant URL','slug',{required:true}),
+   field('title','Nom','text',{required:true}),field('handle','Identifiant URL (généré si vide)','slug'),
    field('description','Description','textarea'),
    field('type','Type','select',{options:[{value:'manual',label:'Manuelle'},{value:'automated',label:'Automatique (moteur non activé)'}]}),
    field('rule_logic','Logique','select',{options:[{value:'all',label:'Toutes les règles'},{value:'any',label:'Au moins une règle'}]}),
@@ -63,7 +63,7 @@ export const MODULES={
   fields:[
    field('country','Pays ISO','text',{required:true,max:2}),
    field('name','Intitulé','text',{required:true}),
-   field('rate_basis_points','TVA en points de base (2000 = 20 %)','integer',{min:0}),
+   field('rate_basis_points','TVA en points de base (2000 = 20 %)','integer',{min:0,required:true}),
    field('tax_shipping','Taxer la livraison','boolean'),
    field('active','Active','boolean')
   ]

@@ -43,3 +43,11 @@ test('escaping product text and safe product imagery paths',()=>{
 test('currency shows EUR from minor units',()=>{
  assert.match(euro(129000),/1[\s\u00A0\u202F]?290,00/);
 });
+
+test('withdrawn products are removed from saved cart on published catalog refresh',()=>{
+ const mem=storage(),cart=new Cart('withdrawn',mem);
+ cart.add(ID1,2);cart.add(ID2,1);
+ assert.equal(cart.prune([{variant_id:ID2}]),true);
+ assert.deepEqual(cart.items,{[ID2]:1});
+ assert.equal(cart.prune([{variant_id:ID2}]),false);
+});

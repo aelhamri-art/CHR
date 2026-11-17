@@ -80,6 +80,17 @@ export async function update(table,id,storeId,record) {
   if (!data?.length) throw new ApiError('Modification refusée ou élément introuvable.',403);
   return data[0];
 }
+export async function updateStore(id,record) {
+  const data=await request('/rest/v1/stores',{method:'PATCH',headers:{Prefer:'return=representation'},params:{id:'eq.'+id},body:record});
+  if(!data?.length)throw new ApiError('Modification d’entreprise refusée.',403);
+  return data[0];
+}
+export async function removeByFields(table,fields) {
+  const params={};
+  for(const [k,v] of Object.entries(fields)) params[k]='eq.'+String(v);
+  const result=await request('/rest/v1/'+encodeURIComponent(table),{method:'DELETE',headers:{Prefer:'return=representation'},params});
+  if(!result?.length)throw new ApiError('Suppression impossible.',403);
+}
 export async function remove(table,id,storeId) {
   const data = await request('/rest/v1/'+encodeURIComponent(table),{method:'DELETE',headers:{Prefer:'return=representation'},params:{id:'eq.'+id,store_id:'eq.'+storeId}});
   if (!data?.length) throw new ApiError('Suppression refusée ou élément introuvable.',403);

@@ -80,9 +80,10 @@ function productGrid(items,{max=Infinity}={}){
 }
 function productCard(group){
  const p=group[0],src=picture(p,'card-picture');
- const art=el('div',{className:'product-art',onClick:()=>nav('/produit/'+encodeURIComponent(p.product_handle))},src,
+ const art=el('div',{className:'product-art'},src,
+ link(el('span',{className:'sr-only'},'Voir '+p.title),'/produit/'+encodeURIComponent(p.product_handle),'product-cover-link'),
  el('div',{className:'photo-corner'},p.category||'ÉQUIPEMENT'));
- const fav=button('',async()=>{await toggleWish(p.variant_id);},'favorite-btn'+(state.wishes.has(p.variant_id)?' selected':''),'heart');
+ const fav=button('',async(event)=>{event.stopPropagation();await toggleWish(p.variant_id);},'favorite-btn'+(state.wishes.has(p.variant_id)?' selected':''),'heart');
  fav.setAttribute('aria-label',state.wishes.has(p.variant_id)?'Retirer des favoris':'Ajouter aux favoris');
  art.append(fav);
  const price=Math.min(...group.map(x=>x.price_minor));
@@ -548,17 +549,19 @@ async function render(){
 }
 function setupCartSync(){
  let debounceTimer;
+ let previous={...cart.items};
  cart.subscribe(()=>{
   refreshCounts();
   clearTimeout(debounceTimer);
-  if(!state.user||!state.profile||!state.settings?.store_id)return;
+  const changes=Object.keys({...previous,...cart.items}).filter(id=>(previous[id]||0)!==(cart.items[id]||0));
+  previous={...cart.items};
+  if(!state.user||!state.profile||!state.settings?.store_id||!changes.length)return;
   debounceTimer=setTimeout(()=>{
    const storeId=state.settings.store_id;
-   for(const item of state.items){
-    const quantity=cart.items[item.variant_id]||0;
-    api.saveCartLine(storeId,state.user.id,item.variant_id,quantity).catch(()=>{});
+   for(const id of changes){
+    api.saveCartLine(storeId,state.user.id,id,cart.items[id]||0).catch(()=>{});
    }
-  },300);
+  },350);
  });
 }
 async function boot(){

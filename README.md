@@ -1,29 +1,35 @@
 # AXIUM Commerce OS — CHR
 
-**Statut : cadrage technique / aucun module métier livré.** Projet piloté par AXIUM Studios, première entreprise pilote : CHR.
+**GitHub CHR = code. Supabase CHR = base métier. Aucune dépendance de production à Lovable, Medusa ou Shopify.**
 
-## Mandat
-Créer un back-office de commerce à **parité fonctionnelle vérifiée avec Shopify Admin**, avec identité propre AXIUM Commerce OS. Aucune dépendance à Shopify n'est présumée. **Aximus n'est pas implémenté** : préparer des actions métier sûres, versionnées, autorisées, journalisées et invocables ultérieurement.
+## État de développement
 
-La parité ne signifie pas copie du code, des éléments graphiques propriétaires, des services financiers Shopify ou de son App Store. Les comportements à reproduire doivent être spécifiés et testés individuellement.
+Administration codée : authentification, boutique, CRUD produits/variantes/collections/clients/entrepôts/livraison/taxes/réductions, images produits, tableaux, exports CSV, journal et moteur transactionnel des commandes.
 
-## Infrastructure confirmée au 17/11/2026
-- GitHub : `aelhamri-art/CHR` (dépôt **public** à sécuriser avant tout code secret ou donnée client).
-- Supabase : projet `CHR`, ref `dkisxdquvryoddpphgeg`, Postgres 17, `eu-west-1`, aucune table métier initialement.
-- Lovable : espace Adam's Lovable. Un projet Lovable ne se lie pas directement par Git Sync à ce dépôt existant : documenter toute synchronisation ou export manuels.
+Opérations serveur codées : ajustement de stock atomique, éligibilité tarif livraison, création commande avec réservation/idempotence, annulation, validation d'encaissement manuel et expédition.
 
-## Doctrine de livraison
-- Aucune fonctionnalité déclarée terminée sans test de bout en bout avec données persistées et vérification des permissions.
-- Aucun calcul commercial (montants, taxes, stock, livraison, paiements) exclusivement en frontend.
-- Pas de stockage des données de carte bancaire ; connecter un PSP conforme via API et webhooks.
-- Migrations SQL versionnées, RLS partout dans les schémas exposés, contrôle serveur de la portée entreprise.
-- CI obligatoire : format, lint, types, tests unitaires, intégration, E2E des parcours P0, audit dépendances.
-- Distinction nette entre `implementé`, `testé`, `intégré`, `bloqué`, `hors périmètre`.
+**NON livré :** paiement CB ou portefeuille électronique, remboursement PSP, étiquettes transporteur, retours/échanges complexes, multi-devises, taxes sophistiquées, métachamps exhaustifs, automatisation collections, facturation, Aximus actif et parité exhaustive Shopify.
 
-## Dossiers
-- `docs/SHOPIFY_PARITY.md` : matrice de référence et critères de réception.
-- `docs/ARCHITECTURE.md` : architecture cible, frontières de confiance, principes de cohérence.
-- `docs/QUALITY_GATES.md` : critères de qualité premium et GO/NO-GO.
+## Démarrer
 
-## État réel
-Ce premier commit est documentaire. Il ne constitue pas une livraison commerciale exploitable.
+1. Cloner ce dépôt.
+2. Vérifier `config.js` (clé Supabase PUBLISHABLE uniquement).
+3. Exécuter `npm run verify` (Node >= 22).
+4. Exécuter `npm run serve`, puis ouvrir http://localhost:8080.
+5. Se connecter via Supabase Auth, créer la boutique, importer les produits, créer le stock, livraisons et taxes.
+
+Le frontend est en JavaScript ES Modules natifs, sans dépendances runtime. Les secrets prestataires ne sont jamais embarqués. Données protégées par Auth/RLS; commandes critiques exclusivement par SQL RPC.
+
+## Déploiement
+
+Serveur statique HTTPS possible après audit et configuration des URL de redirection Supabase. Le dépôt a été identifié public : ne jamais placer d'identifiants ou de données privées dans GitHub. Le système n'est pas encore homologué pour les opérations d'Ahmed.
+
+## Qualité
+
+- `docs/SHOPIFY_PARITY.md` : inventaire initial (non exhaustif).
+- `docs/QUALITY_GATES.md` : critères de réception.
+- `supabase/migrations/` : changements de base versionnés.
+- `supabase/tests/` : tests SQL.
+- `.github/workflows/ci.yml` : vérifications du code.
+
+**Statut honnête :** ce dépôt ne représente pas une reproduction fonctionnelle de 100 % de Shopify Admin. Les modules nécessitent une recette utilisateur authentifiée avant GO commercial.

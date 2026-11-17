@@ -8,8 +8,11 @@ test.describe('CHR storefront first-view smoke',()=>{
   await expect(page.locator('.hero h1')).toBeVisible({timeout:12000});
   await expect(page.locator('.site-header')).toBeVisible();
   await page.screenshot({path:'artifacts/chr-desktop.png',fullPage:true,animations:'disabled'});
+  await expect(page.locator('.hero-ctas a').first()).toHaveAttribute('href','#/catalogue');
   await page.locator('.hero-ctas a').first().click();
   await expect(page.locator('.catalog-page h1')).toBeVisible();
+  const invisible=await page.locator('[data-reveal]').evaluateAll(nodes=>nodes.filter(n=>getComputedStyle(n).opacity==='0').length);
+  expect(invisible,'editorial sections must never be hidden before scroll').toBe(0);
   expect(errors).toEqual([]);
  });
  test('mobile: navigation, touch targets, no horizontal overflow and account',async({page})=>{
@@ -27,6 +30,20 @@ test.describe('CHR storefront first-view smoke',()=>{
   await page.locator('.mobile-bottom a[href="#/compte"]').click();
   await expect(page.locator('.auth-form')).toBeVisible();
   expect(errors).toEqual([]);
+ });
+ test('compact smartphone 320px: no overflow or nested scroll containers',async({page})=>{
+  await page.setViewportSize({width:320,height:680});
+  await page.goto('/storefront/',{waitUntil:'domcontentloaded'});
+  await expect(page.locator('.hero h1')).toBeVisible({timeout:12000});
+  const checks=await page.evaluate(()=>({
+   overflow:document.documentElement.scrollWidth-innerWidth,
+   nested:[...document.querySelectorAll('main *')].filter(n=>{
+    const css=getComputedStyle(n);
+    return (css.overflowY==='auto'||css.overflowY==='scroll') && n.scrollHeight>n.clientHeight+5;
+   }).map(n=>n.tagName+'.'+String(n.className||'').split(' ').join('.'))
+  }));
+  expect(checks.overflow).toBeLessThanOrEqual(2);
+  expect(checks.nested).toEqual([]);
  });
  test('keyboard: product catalog and form labels remain usable',async({page})=>{
   await page.setViewportSize({width:1024,height:768});

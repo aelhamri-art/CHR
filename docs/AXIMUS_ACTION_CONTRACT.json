@@ -1,0 +1,127 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AXIUM Commerce OS / CHR — Aximus v1 action contract",
+  "version": "1.0.0",
+  "status": "contract_only_agent_not_deployed",
+  "tenantIsolation": "store_id authorized by Supabase Auth and RLS; never provided solely by model instructions",
+  "execution": {
+    "actor": "authenticated user or service acting on behalf of authorized user",
+    "dryRun": "required before destructive or high-impact actions",
+    "approval": "human confirmation tied to immutable diff",
+    "logging": "append only audit_events plus action_requests",
+    "idempotency": "UUID per intent; server transaction rejects repetition",
+    "forbidden": [
+      "direct SQL from LLM",
+      "service_role on client",
+      "unverified payment confirmation",
+      "silent inventory adjustment",
+      "cross-tenant data access"
+    ]
+  },
+  "actions": [
+    {
+      "key": "catalog.product.upsert",
+      "version": 1,
+      "needsApproval": true,
+      "api": "products CRUD (validated server facade required)",
+      "args": [
+        "store_id",
+        "product"
+      ],
+      "ready": false
+    },
+    {
+      "key": "catalog.batch_import",
+      "version": 1,
+      "needsApproval": true,
+      "api": "rpc/import_products_batch",
+      "args": [
+        "store_id",
+        "rows",
+        "idempotency_key"
+      ],
+      "readyForHuman": true,
+      "readyForAgent": false
+    },
+    {
+      "key": "inventory.adjust",
+      "version": 1,
+      "needsApproval": true,
+      "api": "rpc/adjust_inventory",
+      "args": [
+        "store_id",
+        "variant_id",
+        "location_id",
+        "delta",
+        "reason",
+        "idempotency_key"
+      ],
+      "readyForHuman": true,
+      "readyForAgent": false
+    },
+    {
+      "key": "shipping.quote_preview",
+      "version": 1,
+      "needsApproval": false,
+      "api": "rpc/eligible_shipping_rates",
+      "args": [
+        "store_id",
+        "profile_id",
+        "country",
+        "postal_code",
+        "weight_grams",
+        "subtotal_minor"
+      ],
+      "readyForHuman": true,
+      "readyForAgent": false
+    },
+    {
+      "key": "order.create",
+      "version": 1,
+      "needsApproval": true,
+      "api": "rpc/create_order",
+      "args": [
+        "store_id",
+        "customer_id",
+        "location_id",
+        "shipping_profile_id",
+        "country",
+        "postal",
+        "lines",
+        "idempotency_key"
+      ],
+      "readyForHuman": true,
+      "readyForAgent": false
+    },
+    {
+      "key": "order.cancel_pending",
+      "version": 1,
+      "needsApproval": true,
+      "api": "rpc/cancel_pending_order",
+      "args": [
+        "store_id",
+        "order_id"
+      ],
+      "readyForHuman": true,
+      "readyForAgent": false
+    },
+    {
+      "key": "payment.confirm_manual",
+      "version": 1,
+      "needsApproval": "human_only",
+      "api": "rpc/confirm_manual_payment",
+      "readyForHuman": true,
+      "readyForAgent": false,
+      "reason": "must be confirmed by person who verified funds"
+    },
+    {
+      "key": "fulfillment.confirm",
+      "version": 1,
+      "needsApproval": "human_only",
+      "api": "rpc/fulfill_paid_order",
+      "readyForHuman": true,
+      "readyForAgent": false,
+      "reason": "requires verified physical handoff"
+    }
+  ]
+}

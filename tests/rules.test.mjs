@@ -21,9 +21,9 @@ test('slugs et listes',()=>{
  assert.deepEqual(listText('FR, BE, FR, LU'),['FR','BE','LU']);
 });
 test('export CSV sûr',()=>{
- assert.equal(escapeCsv('=1+2'),'"\\'=1+2"');
+ assert.equal(escapeCsv('=1+2'), "\"'=1+2\"");
  const csv=exportCsv([{name:'="X"',price_minor:900}],['name','price_minor']);
- assert.match(csv,/'\\"\\"X\\"\\"/);
+ assert.ok(csv.includes("'=\"\"X\"\""));
 });
 test('JSON validé',()=>{
  assert.deepEqual(jsonInput('{"rate":20}'),{rate:20});

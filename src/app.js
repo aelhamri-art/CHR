@@ -324,13 +324,49 @@ async function openForm(key,row=null){
  const spec=MODULES[key];
  if(spec.readOnly)return;
  let relations={};
- for(const f of spec.fields){if(f.type==='relation')relations[f.name]=await api.getRelated(f.table,state.store.id);}
+ for(const f of spec.fields){if(f.type==='relation'&&f.table!=='products')relations[f.name]=await api.getRelated(f.table,state.store.id);}
  const form=E('form',{className:'form-grid',id:'record-editor-form'});
  const controls=new Map();
  for(const f of spec.fields){
   const id='field-'+f.name;
   let input;
   const v=readableFieldValue(row?.[f.name],f);
+  if(f.type==='relation'&&f.table==='products'){
+   // Never load 1000+ parent products into a select. RLS-protected server search.
+   const search=E('input',{type:'search',placeholder:'Chercher par nom ou référence…',
+    ariaLabel:'Rechercher un produit parent'});
+   input=E('select',{id,name:f.name,required:!!f.required},
+    E('option',{value:''},'Sélectionner un produit'));
+   const status=E('small',{className:'micro'},'Commence à saisir un nom ou une référence.');
+   let revision=0,timer=null;
+   async function findProducts(query,initialId=null){
+    const current=++revision;status.textContent='Recherche dans le catalogue…';
+    try{
+     const page=await api.adminCatalogPage(state.store.id,'products',{query});
+     if(current!==revision)return;
+     const options=page.rows.map(p=>({value:p.id,label:p.title+' · '+p.handle}));
+     if(initialId&&!options.some(x=>x.value===initialId)){
+      const existing=await api.list('products',state.store.id,{limit:1,filters:{id:'eq.'+initialId}});
+      if(existing[0])options.unshift({value:existing[0].id,label:existing[0].title+' · '+existing[0].handle});
+     }
+     if(current!==revision)return;
+     input.replaceChildren(E('option',{value:''},'Sélectionner un produit'),
+      ...options.map(o=>E('option',{value:o.value,selected:o.value===initialId},o.label)));
+     input.value=initialId||'';
+     status.textContent=page.has_more?'Affichage limité aux 50 premières correspondances. Affine la recherche.':options.length+' correspondance(s).';
+    }catch(error){if(current===revision)status.textContent=error.message||'Recherche indisponible.';}
+   }
+   search.addEventListener('input',()=>{
+    clearTimeout(timer);
+    input.value='';
+    timer=setTimeout(()=>findProducts(search.value.trim()),270);
+   });
+   controls.set(f.name,input);
+   form.append(E('label',{className:'field'},E('span',{},f.label),
+    E('div',{className:'relation-lookup'},search,input,status)));
+   await findProducts('',row?.[f.name]||null);
+   continue;
+  }
   if(f.type==='select'||f.type==='relation'){
    const options=f.type==='relation'?(relations[f.name]||[]).map(r=>({value:r.id,label:r[f.display]||r.id})):f.options;
    input=E('select',{id,name:f.name,required:!!f.required},

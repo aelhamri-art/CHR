@@ -1,0 +1,99 @@
+name: CHR Real PostgreSQL 17 / 100K Evidence
+on:
+  pull_request:
+    paths:
+      - 'benchmarks/100k/**'
+      - 'supabase/migrations/**'
+      - 'supabase/tests/**'
+      - '.github/workflows/chr-postgres-100k.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  isolated-postgres-100k:
+    name: PostgreSQL 17 - Full schema - 100,000 SKU + RLS
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: chr_disposable_ci_only
+          POSTGRES_DB: chr_audit
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d chr_audit"
+          --health-interval 5s
+          --health-timeout 4s
+          --health-retries 15
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGPASSWORD: chr_disposable_ci_only
+      PGDATABASE: chr_audit
+      PGOPTIONS: -c statement_timeout=720000
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify PostgreSQL client and prepare artifacts
+        shell: bash
+        run: |
+          command -v psql || (sudo apt-get update -qq && sudo apt-get install -y postgresql-client)
+          mkdir -p artifacts
+          psql -X -v ON_ERROR_STOP=1 -Atc 'show server_version;' | tee artifacts/postgres-version.txt
+          lscpu | grep -E 'CPU\(s\)|Model name|Architecture' | head -8 | tee artifacts/runner-hardware.txt
+      - name: Create isolated Supabase-compatible roles (not on production)
+        shell: bash
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f benchmarks/100k/standalone-bootstrap.sql 2>&1 | tee artifacts/bootstrap.log
+      - name: Replay EVERY versioned CHR migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          count=0
+          while IFS= read -r migration; do
+            echo "APPLY $migration" | tee -a artifacts/migrations.log
+            psql -X -v ON_ERROR_STOP=1 -f "$migration" >>artifacts/migrations.log 2>&1
+            count=$((count+1))
+          done < <(find supabase/migrations -maxdepth 1 -name '*.sql' -type f | sort)
+          echo "Applied $count migrations" | tee -a artifacts/migrations.log
+          if [ "$count" -lt 21 ]; then echo "MISSING REQUIRED SCHEMA MIGRATIONS"; exit 1; fi
+      - name: Seed 100,000 real SQL variants in isolated service
+        shell: bash
+        run: |
+          set -o pipefail
+          psql -X -v ON_ERROR_STOP=1 -f benchmarks/100k/pg17-fixtures.sql 2>&1 | tee artifacts/fixture.log
+          psql -X -v ON_ERROR_STOP=1 -Atc "select count(*) from public.storefront_catalog where store_id='a1000000-0000-4000-8000-000000000001';" | grep -x 100000
+      - name: Prove actual two-tenant RLS and fraudulent owner claims denied
+        shell: bash
+        run: |
+          set -o pipefail
+          psql -X -v ON_ERROR_STOP=1 -f benchmarks/100k/pg17-rls-two-tenants.sql 2>&1 | tee artifacts/rls-two-tenants.log
+      - name: Re-run CHR finance and inventory test suites on the full schema
+        shell: bash
+        run: |
+          set -euo pipefail
+          for test in supabase/tests/005_catalog_seek_rollback_and_anon.sql \
+                      supabase/tests/006_inventory_idempotency_owner_jwt_rollback.sql \
+                      supabase/tests/007_finance_tax_and_quote_snapshot_rollback.sql \
+                      supabase/tests/008_incremental_catalog_projection_rollback.sql \
+                      supabase/tests/009_catalog_batch_idempotency_projection_rollback.sql; do
+            echo "TEST $test" | tee -a artifacts/transaction-regressions.log
+            psql -X -v ON_ERROR_STOP=1 -f "$test" >>artifacts/transaction-regressions.log 2>&1
+          done
+      - name: Exhaustive 100K seek-pagination and PostgreSQL latency evidence
+        shell: bash
+        run: |
+          set -o pipefail
+          psql -X -v ON_ERROR_STOP=1 -f benchmarks/100k/pg17-real-benchmark.sql 2>&1 | tee artifacts/100k-full-benchmark.log
+          psql -X -v ON_ERROR_STOP=1 -c "select pg_size_pretty(pg_database_size(current_database())) as pg_db_size;"
+      - name: Upload independent audit evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chr-postgres-100k-verifiable-evidence
+          path: artifacts/
+          retention-days: 30
+          if-no-files-found: warn

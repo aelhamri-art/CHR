@@ -40,21 +40,23 @@ const types=['Four mixte','Four convection','Armoire froide','Réfrigérateur',
  'Table inox','Lave-vaisselle','Friteuse','Hotte','Plancha','Batteur','Vitrine froide',
  'Congélateur','Coupe-légumes','Chariot inox','Machine à glace','Lave-verres',
  'Cellule de refroidissement','Laminoir','Rôtissoire','Meuble plonge'];
-const categories=['Cuisson','Froid','Inox','Laverie','Préparation'];
+const categories=['Fours','Cuisson','Froid positif','Froid négatif','Inox','Laverie','Préparation','Ventilation','Buffet','Boulangerie','Pâtisserie','Conditionnement','Service','Stockage','Hygiène','Mobilier','Glacerie','Rôtisserie','Boissons','Accessoires'];
 
 const uuid=(value)=>{
- const hash=createHash('sha256').update('CHR STAGING ONLY 100K V1:'+storeId+':'+value).digest('hex');
+ const hash=createHash('sha256').update('CHR STAGING ONLY 100K V2:'+storeId+':'+value).digest('hex');
  return [hash.slice(0,8),hash.slice(8,12),'4'+hash.slice(13,16),'8'+hash.slice(17,20),hash.slice(20,32)].join('-');
 };
 function row(n){
- const kind=types[n%types.length];
+ const parent=Math.floor((n-1)/10)+1;
+ const variant=((n-1)%10)+1;
+ const kind=types[parent%types.length];
  return {
-  handle:'stage-chr-'+String(n).padStart(6,'0'),
-  title:kind+' — Performance '+String(2026+n%27),
-  vendor:'Fournisseur test '+String(n%100).padStart(3,'0'),
-  category:categories[n%categories.length],
-  sku:'CHR-STAGE-'+String(n).padStart(6,'0'),
-  variant_title:'Modèle '+(1+n%20),
+  handle:'stage-chr-v2-'+String(parent).padStart(6,'0'),
+  title:kind+' — Performance '+String(2026+parent%27),
+  vendor:'Fournisseur test '+String(parent%100).padStart(3,'0'),
+  category:categories[parent%categories.length],
+  sku:'CHR-STAGE-V2-'+String(n).padStart(6,'0'),
+  variant_title:'Modèle '+variant,
   price_minor:5000+(n%1999)*125,
   weight_grams:500+(n%800)*250,
   status:'active'
@@ -152,11 +154,11 @@ for(let start=1;start<=limit;start+=300){
 }
 const productCount=await total('products');
 const variantCount=await total('product_variants');
-if(productCount<limit||variantCount<limit)
+if(productCount<Math.ceil(limit/10)||variantCount<limit)
  throw new Error('Post-load integrity failure: fewer than '+limit+' products or variants.');
 console.log(JSON.stringify({
  source:'isolated Supabase staging (NOT CHR production)',
- generated:limit,created_or_updated:imported,already_imported:already,
+ generated:limit,expected_parent_products:Math.ceil(limit/10),created_or_updated:imported,already_imported:already,
  totals:{products:productCount,variants:variantCount},
  production_untouched:true
 },null,2));

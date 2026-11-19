@@ -38,12 +38,14 @@ begin
  raise notice 'FULL CURSOR WALK PASSED: 100000 unique SKU, 2084 pages, zero duplicates';
 end $walk$;
 
--- Latencies reflect PostgreSQL stored-functions, excluding HTTP/network/browser.
+-- Diagnostic p50/p95/p99 samples (30 / 30 / 20). Small sample for identifying slow queries;
+-- this is NOT yet a production-grade SLA qualification. Excludes HTTP/network/browser.
 do $bench$
 declare
  t0 timestamptz;v jsonb;i integer;query text;row_count int;
 begin
- for i in 1..250 loop
+ raise notice 'START 30 catalog page samples';
+ for i in 1..30 loop
   query:=case i%5 when 0 then 'Four' when 1 then 'Armoire'
    when 2 then 'Table inox' when 3 then 'Hotte'
    else 'CHR-STAGING-chr-stg-a-00001-01' end;
@@ -55,7 +57,8 @@ begin
   insert into chr_bench_samples values('catalog_page',
    extract(epoch from clock_timestamp()-t0)*1000,row_count);
  end loop;
- for i in 1..250 loop
+ raise notice 'START 30 search suggestion samples';
+ for i in 1..30 loop
   query:=case i%5 when 0 then 'Four' when 1 then 'Armoire'
    when 2 then 'inox' when 3 then 'Friteuse' else 'CHR-STAGING-chr-stg-a-00001' end;
   t0:=clock_timestamp();
@@ -64,7 +67,8 @@ begin
   insert into chr_bench_samples values('catalog_suggest',
    extract(epoch from clock_timestamp()-t0)*1000,row_count);
  end loop;
- for i in 1..100 loop
+ raise notice 'START 20 product details';
+ for i in 1..20 loop
   query:='chr-stg-a-'||lpad((1+(i*97)%10000)::text,5,'0');
   t0:=clock_timestamp();
   v:=public.chr_catalog_product('chr-scale-a',query);
@@ -72,6 +76,7 @@ begin
   insert into chr_bench_samples values('product_detail',
    extract(epoch from clock_timestamp()-t0)*1000,row_count);
  end loop;
+ raise notice 'ALL LATENCY SAMPLES COMPLETED';
 end $bench$;
 select operation,count(*) as samples,
  round(min(latency_ms),2) as min_ms,

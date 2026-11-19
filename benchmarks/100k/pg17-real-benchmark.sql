@@ -75,9 +75,9 @@ begin
 end $bench$;
 select operation,count(*) as samples,
  round(min(latency_ms),2) as min_ms,
- round(percentile_cont(0.5) within group (order by latency_ms)::numeric,2) as p50_ms,
- round(percentile_cont(0.95) within group (order by latency_ms)::numeric,2) as p95_ms,
- round(percentile_cont(0.99) within group (order by latency_ms)::numeric,2) as p99_ms,
+ round((percentile_cont(0.5) within group (order by latency_ms))::numeric,2) as p50_ms,
+ round((percentile_cont(0.95) within group (order by latency_ms))::numeric,2) as p95_ms,
+ round((percentile_cont(0.99) within group (order by latency_ms))::numeric,2) as p99_ms,
  round(max(latency_ms),2) as max_ms,
  min(returned_rows) as min_rows,max(returned_rows) as max_rows
 from chr_bench_samples group by operation order by operation;

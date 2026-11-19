@@ -230,7 +230,7 @@ async function renderLargeCatalog(key){
    E('td',{className:'row-actions'},E('div',{className:'action-inline'},
     btn('Modifier',()=>openForm(key,row),'text-btn'),
     btn(key==='products'?'Archiver':'Supprimer',()=>deleteRecord(key,row),'text-btn danger'))))));
-  if(!rows.length)tbody.append(E('tr',{},E('td',{colspan:spec.columns.length+1},'Aucun résultat.'));
+  if(!rows.length)tbody.append(E('tr',{},E('td',{colspan:spec.columns.length+1},'Aucun résultat.')));
   counter.textContent=rows.length+' résultats affichés — page '+(index+1);
   exportButton.disabled=!rows.length;
   pageActions.replaceChildren(

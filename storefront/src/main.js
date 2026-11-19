@@ -8,7 +8,7 @@ const toastRoot=document.getElementById('toast-root');
 const SITE_SLUG=String(globalThis.CHR_SITE?.slug||'chr');
 const cart=new Cart(SITE_SLUG);
 const state={settings:null,items:[],user:null,profile:null,wishes:new Set(),addresses:[],quotes:[],
- search:'',sort:'name',category:'Toutes',drawer:null,productVariant:null,loading:false};
+ search:'',sort:'name',category:'Toutes',drawer:null,productVariant:null,loading:false,cartRows:[],cartError:null,catalogCategories:[]};
 const staticCategoryIcons={'Cuisson':'♨','Froid':'❄','Laverie':'◫','Préparation':'◈','Autres':'◌'};
 const icons={
  search:'<circle cx="11" cy="11" r="7"/><path d="m16 16 5 5"/>',
@@ -79,7 +79,7 @@ function picture(item,cls=''){
  return el('img',{className:'cover-image '+cls,src,alt:item.image_alt||item.title||'Équipement CHR',loading:'lazy',decoding:'async'});
 }
 function products(){const byProduct=new Map();for(const item of state.items){if(!byProduct.has(item.product_id))byProduct.set(item.product_id,[]);byProduct.get(item.product_id).push(item);}return [...byProduct.values()];}
-function categories(){return ['Toutes',...[...new Set(state.items.map(i=>categoryName(i.category)))].sort((a,b)=>a.localeCompare(b,'fr'))];}
+function categories(){return ['Toutes',...(state.catalogCategories||[])];}
 function productGrid(items,{max=Infinity}={}){
  if(!items.length)return emptyResult('Le catalogue prend forme','Les produits apparaîtront ici après validation de leur publication.');
  return el('div',{className:'product-grid'},...items.slice(0,max).map(group=>productCard(group)));
@@ -398,12 +398,12 @@ function productPage(handle,group=[]){
  section('product-cta','detail-cta',el('h2',{},'Une question sur cette référence ?'),bodyCopy('Ajoutez-la à votre sélection et préparez votre demande professionnelle.'),link('Voir mon projet','/panier','btn-dark')));
 }
 function cartPage(){
- const lines=cart.lines(state.items);
+ const lines=cart.lines(state.cartRows);
  const items=el('div',{className:'cart-items'});
- const subtotal=el('strong',{className:'basket-total'},euro(cart.subtotal(state.items))+' HT');
+ const subtotal=el('strong',{className:'basket-total'},euro(cart.subtotal(state.cartRows))+' HT');
  const totalNote=el('p',{className:'muted'},'Estimation hors taxes, hors livraison. Prix et disponibilités confirmés lors du traitement de la demande.');
  function update(){
-  items.replaceChildren(...cart.lines(state.items).map(({product:p,variant_id,quantity:q})=>{
+  items.replaceChildren(...cart.lines(state.cartRows).map(({product:p,variant_id,quantity:q})=>{
    const inc=button('+',()=>{cart.set(variant_id,Math.min(999,q+1));update();},'stepper-btn');
    const dec=button('−',()=>{cart.set(variant_id,q-1);update();},'stepper-btn');
    return el('div',{className:'cart-line'},picture(p,'cart-image'),
@@ -411,8 +411,13 @@ function cartPage(){
    el('div',{className:'cart-controls'},el('div',{className:'stepper'},dec,el('span',{},String(q)),inc),
    button('Retirer',()=>{cart.remove(variant_id);update();},'text-link'))));
   }));
-  if(!cart.count()||!items.children.length)items.append(emptyResult('Votre sélection est vide','Explorez le catalogue pour composer votre projet.'));
-  subtotal.textContent=euro(cart.subtotal(state.items))+' HT';requestBtn.disabled=!cart.lines(state.items).length||!state.settings?.published;refreshCounts();
+  if(!items.children.length){
+   if(cart.count())items.append(el('div',{className:'notice',role:'alert'},
+     'Certaines références de votre sélection ne sont pas disponibles. Vos choix sont conservés.',
+     button('Vider cette sélection',()=>{cart.clear();update();},'text-link')));
+   else items.append(emptyResult('Votre sélection est vide','Explorez le catalogue pour composer votre projet.'));
+  }
+  subtotal.textContent=euro(cart.subtotal(state.cartRows))+' HT';requestBtn.disabled=!cart.lines(state.cartRows).length||!state.settings?.published;refreshCounts();
  }
  const requestBtn=button('Demander un devis',()=>nav('/devis'),'btn-dark full-width','arrow');
  requestBtn.disabled=!lines.length||!state.settings?.published;
@@ -425,7 +430,7 @@ function cartPage(){
  update();return page;
 }
 function quotePage(){
- const lines=cart.lines(state.items);
+ const lines=cart.lines(state.cartRows);
  if(!lines.length)return el('div',{className:'page-container empty-page'},emptyResult('Pas encore de sélection','Ajoutez des produits au panier avant de demander un devis.'),link('Explorer le catalogue','/catalogue','btn-dark'));
  if(!state.settings?.store_id)return el('div',{className:'page-container'},emptyResult('Demandes non ouvertes','La boutique CHR est encore en préparation.'));
  if(!state.user)return el('div',{className:'page-container narrow'},strap('DEMANDE PROFESSIONNELLE'),el('h1',{},'Connectez-vous pour poursuivre.'),bodyCopy('Un compte permet de suivre votre demande sans perdre votre sélection.'),link('Créer mon accès','/connexion','btn-dark'));
@@ -447,7 +452,7 @@ function quotePage(){
  return el('div',{className:'page-container quote-page'},strap('DERNIÈRE ÉTAPE'),el('h1',{},'Votre projet prend forme.'),bodyCopy('Précisez vos besoins pour transmettre votre demande à CHR.'),
  el('div',{className:'quote-grid'},el('div',{className:'quote-content'},form),
  el('aside',{className:'quote-summary'},el('h2',{},'Votre sélection'),...lines.map(x=>el('div',{className:'quote-item'},el('span',{},x.product.title+' × '+x.quantity),el('strong',{},euro(x.product.price_minor*x.quantity)))),
- el('div',{className:'quote-total'},'Estimation HT',el('strong',{},euro(cart.subtotal(state.items)))))));
+ el('div',{className:'quote-total'},'Estimation HT',el('strong',{},euro(cart.subtotal(state.cartRows)))))));
 }
 function projectPage(){
  return el('div',{},section('project-hero','project-hero',
@@ -506,7 +511,7 @@ function authPage(mode='login'){
    try{
     if(stateMode==='signup'){await api.signup(email.value.trim(),password.value);notify('Compte demandé. Vérifiez votre boîte e-mail pour confirmer votre adresse.','success');switchMode('login');return;}
     if(stateMode==='recover'){await api.recover(email.value.trim());notify('Si ce compte existe, un lien de récupération a été envoyé.','success');switchMode('login');return;}
-    await api.login(email.value.trim(),password.value);state.user=await api.user();state.settings=await api.settings(SITE_SLUG);state.items=state.settings?await api.catalog(state.settings.store_id):[];if(state.settings?.published)cart.prune(state.items);await loadPersonal();notify('Vous êtes connecté.','success');nav('/compte');
+    await api.login(email.value.trim(),password.value);state.user=await api.user();state.settings=await api.settings(SITE_SLUG);state.items=state.settings?await api.catalog(state.settings.store_id,SITE_SLUG):[];await loadPersonal();notify('Vous êtes connecté.','success');nav('/compte');
    }catch(error){notify(error.message,'error');}
    finally{submit.disabled=false;}
   }},field('Adresse e-mail',email),password?field('Mot de passe',password):null,submit);
@@ -623,6 +628,17 @@ async function render(){
  const sequence=++renderSequence;
  const r=route();
  if(r==='/compte'&&state.user&&state.settings){try{await loadPersonal();}catch(e){notify(e.message,'error');}}
+ // Request only the selected variants; do not mistake a 24-row catalog page for the whole catalog.
+ if(r==='/panier'||r==='/devis'){
+  try{
+   state.cartRows=await api.catalogCartLines(SITE_SLUG,Object.keys(cart.items));
+   state.cartError=null;
+  }catch(error){
+   state.cartError=error.message||'Prix indisponibles';
+   state.cartRows=[];
+  }
+  if(sequence!==renderSequence)return;
+ }
  const scroll=window.scrollY;
  let view;
  if(r==='/'||r==='/accueil')view=home();
@@ -676,8 +692,8 @@ async function boot(){
   if(settings.status==='rejected')throw settings.reason;
   state.settings=settings.value;
   state.user=user.status==='fulfilled'?user.value:null;
-  state.items=state.settings?await api.catalog(state.settings.store_id):[];
-  if(state.settings?.published)cart.prune(state.items);
+  state.items=state.settings?await api.catalog(state.settings.store_id,SITE_SLUG):[];
+  state.catalogCategories=state.settings?(await api.catalogCategories(SITE_SLUG)).map(x=>x.name):[];
   if(state.user&&state.settings)await loadPersonal();
   await render();
  }catch(e){

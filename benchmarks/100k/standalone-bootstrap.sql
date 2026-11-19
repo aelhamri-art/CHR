@@ -40,7 +40,7 @@ alter table storage.objects enable row level security;
 grant select,insert,update,delete on storage.objects to authenticated;
 create or replace function storage.foldername(path text)
 returns text[] language sql immutable set search_path=''
-as $$ select string_to_array(split_part(path,'/',1),'') || 
+as $$ select array[split_part(path,'/',1)] || 
   case when strpos(path,'/')>0 then
    string_to_array(substring(path from position('/' in path)+1),'/')
   else array[]::text[] end

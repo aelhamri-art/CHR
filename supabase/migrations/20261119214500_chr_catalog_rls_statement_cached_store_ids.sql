@@ -27,7 +27,7 @@ create policy storefront_catalog_authenticated
  on public.storefront_catalog
  for select to authenticated
  using (
-  store_id = any((select app_private.readable_store_ids()))
+  store_id in (select pg_catalog.unnest(app_private.readable_store_ids()))
   or exists(
    select 1 from public.storefront_settings s
    where s.store_id=storefront_catalog.store_id and s.published

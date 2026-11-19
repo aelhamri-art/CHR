@@ -57,9 +57,41 @@ export async function settings(slug){
  const data=await call('/rest/v1/storefront_settings',{params:{public_slug:'eq.'+slug,select:'store_id,public_slug,brand_name,eyebrow,headline,subline,contact_email,hero_image_path,published,legal_notice,privacy_policy,terms_of_sale',limit:1}});
  return data?.[0]||null;
 }
-export async function catalog(storeId){
+/** Bounded, RLS-enforced catalog API: never download the entire product database. */
+export async function catalogPage(slug,{query='',category=null,sort='name',cursor=null,limit=24}={}){
+ const q=String(query).trim();
+ if(q.length>120)throw new StoreError('Recherche trop longue.');
+ const data=await call('/rest/v1/rpc/chr_catalog_page',{method:'POST',body:{
+  p_slug:slug,p_query:q,p_category:category,p_sort:sort,
+  p_cursor_title:cursor?.title??null,p_cursor_price:cursor?.price??null,
+  p_cursor_id:cursor?.id??null,p_limit:Math.min(48,Math.max(1,Number(limit)||24))
+ }});
+ return {items:Array.isArray(data?.items)?data.items:[],has_more:!!data?.has_more,next_cursor:data?.next_cursor??null};
+}
+export async function catalog(storeId,slug='chr'){
  if(!storeId)return [];
- const data=await call('/rest/v1/storefront_catalog',{params:{store_id:'eq.'+storeId,select:'store_id,product_id,variant_id,product_handle,title,description,vendor,category,variant_title,sku,price_minor,weight_grams,image_path,image_alt',order:'title.asc',limit:1000}});
+ return (await catalogPage(slug,{limit:12})).items;
+}
+export async function catalogSuggestions(slug,query){
+ const q=String(query).trim();
+ if(q.length<2)return [];
+ if(q.length>80)throw new StoreError('Recherche trop longue.');
+ const data=await call('/rest/v1/rpc/chr_catalog_suggest',{method:'POST',body:{p_slug:slug,p_query:q,p_limit:5}});
+ return Array.isArray(data)?data:[];
+}
+export async function catalogCategories(slug){
+ const data=await call('/rest/v1/rpc/chr_catalog_categories',{method:'POST',body:{p_slug:slug}});
+ return Array.isArray(data)?data:[];
+}
+export async function catalogProduct(slug,handle){
+ if(!handle||String(handle).length>180)return [];
+ const data=await call('/rest/v1/rpc/chr_catalog_product',{method:'POST',body:{p_slug:slug,p_handle:handle}});
+ return Array.isArray(data)?data:[];
+}
+export async function catalogCartLines(slug,ids){
+ if(!Array.isArray(ids)||!ids.length)return [];
+ if(ids.length>100)throw new StoreError('100 références maximum dans une sélection.');
+ const data=await call('/rest/v1/rpc/chr_catalog_cart_lines',{method:'POST',body:{p_slug:slug,p_ids:ids}});
  return Array.isArray(data)?data:[];
 }
 export async function profile(storeId){

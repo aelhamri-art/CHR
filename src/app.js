@@ -178,27 +178,32 @@ async function renderPage(){
  }catch(e){setMain(errorView(e));}
 }
 async function renderDashboard(){
- const [products,variants,customers,orders,locations,alerts]=await Promise.all([
- api.list('products',state.store.id),api.list('product_variants',state.store.id),
- api.list('customers',state.store.id),api.list('orders',state.store.id),
- api.list('locations',state.store.id),api.list('inventory_levels',state.store.id)
- ]);
+ const counts=await api.adminDashboardCounts(state.store.id);
  if(state.route!=='dashboard')return;
- const total=orders.filter(o=>o.payment_status==='paid'||o.payment_status==='partially_refunded').reduce((a,o)=>a+Number(o.total_minor||0),0);
- const low=alerts.filter(a=>Number(a.on_hand||0)-Number(a.reserved||0)<3);
+ const money=formatMoney(counts.paid_order_value_minor||0);
  const cards=[
- ['Produits',products.length,'Fiches catalogue'],['Références SKU',variants.length,'Variantes actives ou archivées'],
- ['Clients B2B',customers.length,'Comptes enregistrés'],['Commandes',orders.length,'Opérations stockées'],
- ['CA encaissé',formatMoney(total),'D’après les commandes au statut payé'],['Stock faible',low.length,'Moins de 3 unités disponibles']
+  ['Produits',counts.products||0,'Total de fiches catalogue'],
+  ['Références SKU',counts.variants||0,'Variantes toutes pages confondues'],
+  ['Clients B2B',counts.customers||0,'Comptes enregistrés'],
+  ['Commandes',counts.orders||0,'Total enregistré en base'],
+  ['Commandes payées',money,'Valeur brute des commandes payées (hors déductions de remboursements)'],
+  ['Stock faible',counts.inventory_low||0,'Moins de trois unités disponibles']
  ];
- setMain(E('div',{},pageHeader('Vue d’ensemble','Données réelles, calculées sur la base CHR.'),E('section',{className:'metric-grid'},...cards.map(c=>E('div',{className:'metric'},E('p',{},c[0]),E('strong',{},c[1]),E('small',{},c[2])))),
- E('div',{className:'two-col'},panel(E('h2',{},'Actions utiles'),E('div',{className:'quick-actions'},
- btn('Créer un produit',()=>navigate('products'),'btn accent'),btn('Ajouter une variante',()=>navigate('product_variants')),
- btn('Configurer la livraison',()=>navigate('shipping_rates')),btn('Voir les stocks',()=>navigate('inventory_levels'))),
- E('p',{className:'muted'},'Aximus : emplacement réservé. Aucun agent n’exécute d’actions à ce stade.')),
+ setMain(E('div',{},pageHeader('Vue d’ensemble','Comptes exacts calculés dans PostgreSQL, jamais extrapolés d’une liste tronquée.'),
+ E('section',{className:'metric-grid'},...cards.map(c=>E('div',{className:'metric'},
+  E('p',{},c[0]),E('strong',{},c[1]),E('small',{},c[2])))),
+ E('div',{className:'two-col'},
+ panel(E('h2',{},'Actions utiles'),E('div',{className:'quick-actions'},
+  btn('Créer un produit',()=>navigate('products'),'btn accent'),
+  btn('Ajouter une variante',()=>navigate('product_variants')),
+  btn('Configurer la livraison',()=>navigate('shipping_rates')),
+  btn('Voir les stocks',()=>navigate('inventory_levels'))),
+ E('p',{className:'muted'},'Aximus : contrats d’intégration prévus, agent non activé.')),
  panel(E('h2',{},'État opérationnel'),E('dl',{className:'stats-list'},
- ...[['Entreprises',state.stores.length],['Entrepôts',locations.length],['Commandes ouvertes',orders.filter(o=>o.status==='open').length],['Références en stock faible',low.length]].map(([k,v])=>E('div',{},E('dt',{},k),E('dd',{},v)))),
- E('p',{className:'muted'},'Les paiements nécessitent un prestataire connecté et des webhooks testés.')))));
+  ...[['Entreprises accessibles',state.stores.length],['Entrepôts',counts.locations||0],
+   ['Commandes ouvertes',counts.orders_open||0],['Références en stock faible',counts.inventory_low||0]]
+   .map(([k,v])=>E('div',{},E('dt',{},k),E('dd',{},v)))),
+ E('p',{className:'muted'},'Les paiements bancaires nécessitent un prestataire réel, un webhook signé et une validation métier.')))));
 }
 function tableData(table,search){
  const q=search.trim().toLowerCase();

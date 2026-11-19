@@ -157,6 +157,7 @@ function hero(){
   fetchpriority:'high',decoding:'async','aria-hidden':'true'});
  const search=createHeroSearch({
   products:state.items,
+  onSuggest:query=>api.catalogSuggestions(SITE_SLUG,query),
   onSearch:query=>{
    state.search=query;state.category='Toutes';
    nav('/catalogue?q='+encodeURIComponent(query));
@@ -266,46 +267,90 @@ function home(){
 }
 function catalogPage(){
  const params=new URLSearchParams(route().split('?')[1]||'');
- if(params.has('categorie'))state.category=params.get('categorie');
- if(params.has('q')){state.search=(params.get('q')||'').slice(0,120);state.category='Toutes';}
- const filtered=()=> {
-  const q=state.search.trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
-  const group=products().filter(g=>{
-   const p=g[0],hay=(p.title+' '+(p.vendor||'')+' '+(p.category||'')+' '+g.map(v=>v.sku+' '+v.variant_title).join(' ')).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
-   return (state.category==='Toutes'||categoryName(p.category)===state.category)&&(!q||hay.includes(q));
-  });
-  if(state.sort==='price-low')group.sort((a,b)=>Math.min(...a.map(p=>p.price_minor))-Math.min(...b.map(p=>p.price_minor)));
-  if(state.sort==='price-high')group.sort((a,b)=>Math.min(...b.map(p=>p.price_minor))-Math.min(...a.map(p=>p.price_minor)));
-  if(state.sort==='name')group.sort((a,b)=>a[0].title.localeCompare(b[0].title,'fr'));
-  return group;
- };
- const search=el('input',{type:'search',className:'catalog-search',placeholder:'Un équipement, une référence, un fabricant…',
- 'aria-label':'Rechercher un équipement',value:state.search,autocomplete:'off'});
+ state.search=(params.get('q')||state.search||'').slice(0,120);
+ state.category=(params.get('categorie')||state.category||'Toutes');
+ const search=el('input',{type:'search',className:'catalog-search',
+  placeholder:'Équipement, référence ou fabricant…',
+  'aria-label':'Rechercher un équipement',value:state.search,autocomplete:'off'});
  const categoriesRow=el('div',{className:'filter-pills'});
- const results=el('div',{className:'catalog-results'});
- const count=el('span',{className:'catalog-count'});
+ const results=el('div',{className:'catalog-results','aria-live':'polite'});
+ const counter=el('span',{className:'catalog-count'},'Chargement…');
  const sort=el('select',{className:'sort-select','aria-label':'Trier les produits'},
- ...[['name','Nom A → Z'],['price-low','Prix croissant'],['price-high','Prix décroissant']]
- .map(([value,label])=>el('option',{value,selected:value===state.sort},label)));
- function apply(){
-  const groups=filtered();
-  count.textContent=groups.length+' produit'+(groups.length>1?'s':'');
-  results.replaceChildren(productGrid(groups));
-  categoriesRow.replaceChildren(...categories().map(cat=>button(cat,()=>{
-   state.category=cat;apply();
+  ...[['name','Nom A → Z'],['price-low','Prix croissant'],['price-high','Prix décroissant']]
+  .map(([value,label])=>el('option',{value,selected:value===state.sort},label)));
+ const pager=el('div',{className:'catalog-pager'});
+ let positions=[null],pageIndex=0,requestId=0,next=null,hasMore=false;
+ function drawCategories(){
+  categoriesRow.replaceChildren(...['Toutes',...(state.catalogCategories||[])].map(cat=>button(cat,()=>{
+   if(state.category===cat)return;
+   state.category=cat;
+   positions=[null];pageIndex=0;
+   drawCategories();load();
   },'filter-pill'+(cat===state.category?' active':''))));
  }
- search.addEventListener('input',debounce(e=>{state.search=e.target.value;apply();},100));
- sort.addEventListener('change',()=>{state.sort=sort.value;apply();});
- const page=el('div',{className:'catalog-page page-container'},
- el('div',{className:'catalog-intro'},strap('CATALOGUE PROFESSIONNEL'),el('h1',{},'Les outils de votre excellence.'),bodyCopy('Parcourez les équipements publiés et composez votre sélection.')),
- el('div',{className:'catalog-controls'},el('div',{className:'search-wrap'},ico('search'),search),
- el('div',{className:'sort-wrap'},count,sort)),
- categoriesRow,results);
- apply();return page;
+ function updatePager(){
+  pager.replaceChildren();
+  const previous=button('← Précédent',()=>{
+   if(pageIndex===0)return;
+   pageIndex-=1;load();
+  },'btn-outline dark-outline');
+  previous.disabled=pageIndex===0;
+  const nextButton=button('Suivant →',()=>{
+   if(!hasMore||!next)return;
+   positions=positions.slice(0,pageIndex+1);positions.push(next);
+   pageIndex+=1;load();
+  },'btn-dark');
+  nextButton.disabled=!hasMore;
+  pager.append(previous,el('span',{className:'catalog-page-indicator'},'Page '+(pageIndex+1)),nextButton);
+ }
+ async function load(){
+  const id=++requestId;
+  results.replaceChildren(el('div',{className:'catalog-loading',role:'status'},'Recherche dans le catalogue…'));
+  counter.textContent='Recherche…';hasMore=false;updatePager();
+  try{
+   const page=await api.catalogPage(SITE_SLUG,{query:state.search,
+    category:state.category==='Toutes'?null:state.category,
+    sort:state.sort,cursor:positions[pageIndex],limit:24});
+   if(id!==requestId||!document.contains(results))return;
+   const byProduct=new Map();
+   for(const item of page.items){
+    if(!byProduct.has(item.product_id))byProduct.set(item.product_id,[]);
+    byProduct.get(item.product_id).push(item);
+   }
+   const groups=[...byProduct.values()];
+   results.replaceChildren(groups.length?productGrid(groups):
+    emptyResult('Aucun résultat','Essayez une autre référence, un fabricant ou une catégorie.'));
+   counter.textContent=page.items.length+' référence'+(page.items.length>1?'s':'')+' sur cette page';
+   hasMore=page.has_more;next=page.next_cursor;
+   updatePager();
+  }catch(error){
+   if(id!==requestId||!document.contains(results))return;
+   results.replaceChildren(el('div',{className:'catalog-error',role:'alert'},
+    el('h3',{},'Recherche momentanément indisponible'),
+    bodyCopy(error.message||'Impossible de charger les références.'),
+    button('Réessayer',()=>load(),'btn-dark')));
+   counter.textContent='Erreur';
+   hasMore=false;updatePager();
+  }
+ }
+ const queue=debounce(()=>{positions=[null];pageIndex=0;load();},270);
+ search.addEventListener('input',event=>{state.search=event.target.value.slice(0,120);queue();});
+ sort.addEventListener('change',()=>{state.sort=sort.value;positions=[null];pageIndex=0;load();});
+ const container=el('div',{className:'catalog-page page-container'},
+  el('div',{className:'catalog-intro'},strap('CATALOGUE PROFESSIONNEL'),
+   el('h1',{},'Les outils de votre excellence.'),
+   bodyCopy('Des résultats récupérés au fil de votre recherche, sans télécharger l’intégralité du catalogue.')),
+  el('div',{className:'catalog-controls'},
+   el('div',{className:'search-wrap'},ico('search'),search),
+   el('div',{className:'sort-wrap'},counter,sort)),
+  categoriesRow,results,pager);
+ drawCategories();
+ // The DOM is mounted by shell() immediately after this function returns.
+ queueMicrotask(()=>{if(document.contains(container))load();});
+ return container;
 }
-function productPage(handle){
- const group=products().find(g=>g[0].product_handle===decodeURIComponent(handle||''));
+
+function productPage(handle,group=[]){
  if(!group)return el('div',{className:'page-container error-page'},strap('RÉFÉRENCE INTROUVABLE'),
  el('h1',{},'Ce produit n’est pas disponible.'),bodyCopy('Il a peut-être été retiré du catalogue.'),link('Retour au catalogue','/catalogue','btn-dark'));
  const p=group[0];
@@ -582,7 +627,12 @@ async function render(){
  let view;
  if(r==='/'||r==='/accueil')view=home();
  else if(r.startsWith('/catalogue'))view=catalogPage();
- else if(r.startsWith('/produit/'))view=productPage(r.slice('/produit/'.length).split('?')[0]);
+ else if(r.startsWith('/produit/')){
+  const handle=r.slice('/produit/'.length).split('?')[0];
+  const detail=await api.catalogProduct(SITE_SLUG,decodeURIComponent(handle));
+  if(sequence!==renderSequence)return;
+  view=productPage(handle,detail);
+ }
  else if(r==='/panier')view=cartPage();
  else if(r==='/devis')view=quotePage();
  else if(r==='/projet')view=projectPage();

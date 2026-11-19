@@ -1,0 +1,27 @@
+name: CHR Security CodeQL
+on:
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'storefront/**'
+      - 'supabase/**'
+      - '.github/workflows/security-codeql.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+jobs:
+  scan:
+    name: Static security analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: javascript-typescript
+          queries: security-extended
+      - uses: github/codeql-action/analyze@v4
+        with:
+          category: '/language:javascript-typescript'

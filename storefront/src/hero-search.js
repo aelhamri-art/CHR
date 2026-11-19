@@ -18,7 +18,7 @@ export function findSuggestions(products,query,max=5){
   return Number(!x.startsWith(q))-Number(!y.startsWith(q));
  }).slice(0,max);
 }
-export function createHeroSearch({products=[],onSearch,onProduct,formatPrice}){
+export function createHeroSearch({products=[],onSuggest=null,onSearch,onProduct,formatPrice}){
  const elt=(tag,props={},...children)=>{
   const n=document.createElement(tag);
   for(const [key,value] of Object.entries(props)){
@@ -48,6 +48,7 @@ export function createHeroSearch({products=[],onSearch,onProduct,formatPrice}){
  }
  wrap.append(form,results,quick);
  let matches=[],selected=-1,word=0,pos=0,direction=1,timeout=null,focused=false,disposed=false;
+ let suggestionSeq=0,suggestionTimer=null,suggestionError=false;
  const reduced=window.matchMedia?.("(prefers-reduced-motion: reduce)");
  const stop=()=>{if(timeout!==null)window.clearTimeout(timeout);timeout=null;};
  const step=()=>{
@@ -68,7 +69,7 @@ export function createHeroSearch({products=[],onSearch,onProduct,formatPrice}){
   results.replaceChildren();
   if(!input.value.trim()){hide();return;}
   results.hidden=false;input.setAttribute("aria-expanded","true");
-  if(!matches.length){results.append(elt("p",{className:"search-no-match",role:"status"},"Aucune référence correspondante. Vous pouvez lancer la recherche dans le catalogue."));return;}
+  if(!matches.length){results.append(elt("p",{className:"search-no-match",role:"status"},suggestionError?"Recherche temporairement indisponible. Ouvrez le catalogue ou réessayez.":"Aucune référence correspondante. Vous pouvez lancer la recherche dans le catalogue."));return;}
   for(const [i,p] of matches.entries()){
    const b=elt("button",{type:"button",className:"search-suggest-row"+(i===selected?" selected":""),role:"option",id:"suggest-"+i,"aria-selected":String(i===selected)});
    b.append(elt("span",{className:"search-suggest-icon","aria-hidden":"true"},"C."),
@@ -81,10 +82,30 @@ export function createHeroSearch({products=[],onSearch,onProduct,formatPrice}){
   if(selected>=0)input.setAttribute("aria-activedescendant","suggest-"+selected);
   else input.removeAttribute("aria-activedescendant");
  }
- input.addEventListener("focus",()=>{focused=true;stop();animation.textContent="";if(input.value.trim()){matches=findSuggestions(products,input.value);draw();}});
- input.addEventListener("input",()=>{selected=-1;matches=findSuggestions(products,input.value);draw();});
+ async function updateSuggestions(query,sequence){
+  try{
+   const next=typeof onSuggest==="function" ? await onSuggest(query) : findSuggestions(products,query);
+   if(disposed||sequence!==suggestionSeq||query!==input.value.trim())return;
+   matches=Array.isArray(next)?next.slice(0,5):[];
+   suggestionError=false;
+   draw();
+  }catch(error){
+   if(disposed||sequence!==suggestionSeq)return;
+   matches=[];suggestionError=true;draw();
+  }
+ }
+ function queueSuggestions(){
+  selected=-1;matches=[];suggestionError=false;
+  suggestionSeq+=1;
+  if(suggestionTimer!==null)window.clearTimeout(suggestionTimer);
+  const query=input.value.trim(),seq=suggestionSeq;
+  if(query.length<2){hide();return;}
+  suggestionTimer=window.setTimeout(()=>updateSuggestions(query,seq),180);
+ }
+ input.addEventListener("focus",()=>{focused=true;stop();animation.textContent="";if(input.value.trim())queueSuggestions();});
+ input.addEventListener("input",queueSuggestions);
  input.addEventListener("keydown",event=>{
-  if(event.key==="Escape"){hide();return;}
+  if(event.key==="Escape"){suggestionSeq++;hide();return;}
   if((event.key==="ArrowDown"||event.key==="ArrowUp")&&matches.length){
    event.preventDefault();selected=event.key==="ArrowDown"?(selected+1)%matches.length:(selected<=0?matches.length-1:selected-1);draw();
   }
@@ -95,9 +116,9 @@ export function createHeroSearch({products=[],onSearch,onProduct,formatPrice}){
  input.addEventListener("blur",()=>{
   focused=false;window.setTimeout(()=>{if(!wrap.contains(document.activeElement))hide();if(!input.value){pos=0;direction=1;step();}},200);
  });
- form.addEventListener("submit",e=>{e.preventDefault();const q=input.value.trim();if(q){hide();onSearch(q);}else input.focus();});
+ form.addEventListener("submit",e=>{e.preventDefault();const q=input.value.trim();if(q){suggestionSeq++;hide();onSearch(q);}else input.focus();});
  document.addEventListener("pointerdown",function outside(e){
-  if(!wrap.isConnected){stop();disposed=true;document.removeEventListener("pointerdown",outside);return;}
+  if(!wrap.isConnected){stop();disposed=true;suggestionSeq++;if(suggestionTimer!==null)window.clearTimeout(suggestionTimer);document.removeEventListener("pointerdown",outside);return;}
   if(!wrap.contains(e.target))hide();
  });
  if(reduced?.matches)animation.textContent=ROTATIONS[0];

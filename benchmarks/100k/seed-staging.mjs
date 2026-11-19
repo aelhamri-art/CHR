@@ -10,6 +10,7 @@
  * STAGING_STORE_ID=<uuid for a test store only>
  * STAGING_EMAIL=<test admin email>
  * STAGING_PASSWORD=<test admin password>
+ * STAGING_SLUG=chr-staging
  * STAGING_SEED_COUNT=100000 (default, optional, maximum 100000)
  *
  * This file does not change any data unless executed explicitly with all
@@ -21,6 +22,7 @@ const PROD_REF='dkisxdquvryoddpphgeg';
 const url=String(process.env.STAGING_URL||'').replace(/\/$/,'');
 const key=process.env.STAGING_ANON_KEY||'';
 const storeId=process.env.STAGING_STORE_ID||'';
+const slug=process.env.STAGING_SLUG||'chr-staging';
 const email=process.env.STAGING_EMAIL||'';
 const password=process.env.STAGING_PASSWORD||'';
 const limit=Number(process.env.STAGING_SEED_COUNT||100000);
@@ -28,6 +30,7 @@ const allowed=process.env.ALLOW_CHR_STAGING_SEED==='I_UNDERSTAND_STAGING_ONLY';
 if(!allowed||!/^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(url)
 ||url.includes(PROD_REF)||!/^[0-9a-fA-F-]{36}$/.test(storeId)
 ||key.length<15||!email.includes('@')||!password
+||!/^chr-staging(?:-[a-z0-9-]{2,25})?$/.test(slug)
 ||!Number.isInteger(limit)||limit<1||limit>100000){
  console.error('REFUSED: isolated staging project, valid test credentials and explicit guard required.');
  process.exit(2);
@@ -81,6 +84,26 @@ async function refresh(){
  if(!r.ok||!r.data?.access_token)throw new Error('Staging session expired.');
  auth=r.data;
 }
+async function ensureUnpublishedStagingSettings(){
+ const endpoint=url+'/rest/v1/storefront_settings?store_id=eq.'+storeId+'&select=store_id,public_slug,published&limit=1';
+ const headers={apikey:key,Authorization:'Bearer '+auth.access_token,Accept:'application/json'};
+ const existing=await fetch(endpoint,{headers,signal:AbortSignal.timeout(20000)});
+ if(!existing.ok)throw new Error('Storefront settings preflight failed ('+existing.status+').');
+ const records=await existing.json();
+ if(records.length){
+  if(records[0].published||records[0].public_slug!==slug)
+   throw new Error('REFUSED: staging store already published or linked to a different slug.');
+  return;
+ }
+ const created=await fetch(url+'/rest/v1/storefront_settings',{
+  method:'POST',
+  headers:{...headers,'Content-Type':'application/json',Prefer:'return=representation'},
+  body:JSON.stringify({store_id:storeId,public_slug:slug,published:false}),
+  signal:AbortSignal.timeout(20000)
+ });
+ if(!created.ok)throw new Error('Cannot create unpublished staging settings: '+created.status);
+}
+
 async function importBatch(start,rows){
  const body={p_store_id:storeId,p_rows:rows,p_idempotency_key:uuid(start)};
  for(let attempt=0;attempt<5;attempt++){
@@ -116,6 +139,7 @@ async function total(table){
  return Number(match[1]);
 }
 await signIn();
+await ensureUnpublishedStagingSettings();
 console.error('Staging-only identity authenticated. Starting synthetic fixture load.');
 let imported=0,already=0;
 for(let start=1;start<=limit;start+=300){

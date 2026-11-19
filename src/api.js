@@ -143,3 +143,18 @@ export async function saveStorefrontSettings(storeId,record){
  if(!data?.length)throw new ApiError('Publication ou modification refusée par Supabase.',403);
  return data[0];
 }
+
+/** Backend-enforced tenant RLS. Limit 50, keyset cursor instead of OFFSET scans. */
+export async function adminCatalogPage(storeId,table,{query='',cursor=null}={}){
+ if(!['products','product_variants'].includes(table))throw new ApiError('Catalogue administrateur invalide.',400);
+ const data=await rpc('chr_admin_catalog_page',{
+  p_store_id:storeId,p_type:table,p_query:String(query).trim().slice(0,100),
+  p_cursor_title:cursor?.title??null,p_cursor_id:cursor?.id??null,p_limit:50
+ });
+ return {rows:Array.isArray(data?.rows)?data.rows:[],has_more:!!data?.has_more,next_cursor:data?.next_cursor??null};
+}
+
+/** Exact RLS-protected dashboard aggregates: never infer totals from a 500-row sample. */
+export async function adminDashboardCounts(storeId){
+ return rpc('chr_admin_dashboard_counts',{p_store_id:storeId});
+}

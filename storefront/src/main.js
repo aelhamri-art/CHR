@@ -8,7 +8,7 @@ const toastRoot=document.getElementById('toast-root');
 const SITE_SLUG=String(globalThis.CHR_SITE?.slug||'chr');
 const cart=new Cart(SITE_SLUG);
 const state={settings:null,items:[],user:null,profile:null,wishes:new Set(),addresses:[],quotes:[],
- search:'',sort:'name',category:'Toutes',drawer:null,productVariant:null,loading:false};
+ search:'',sort:'name',category:'Toutes',drawer:null,productVariant:null,loading:false,cartRows:[],cartError:null,catalogCategories:[]};
 const staticCategoryIcons={'Cuisson':'♨','Froid':'❄','Laverie':'◫','Préparation':'◈','Autres':'◌'};
 const icons={
  search:'<circle cx="11" cy="11" r="7"/><path d="m16 16 5 5"/>',
@@ -79,7 +79,7 @@ function picture(item,cls=''){
  return el('img',{className:'cover-image '+cls,src,alt:item.image_alt||item.title||'Équipement CHR',loading:'lazy',decoding:'async'});
 }
 function products(){const byProduct=new Map();for(const item of state.items){if(!byProduct.has(item.product_id))byProduct.set(item.product_id,[]);byProduct.get(item.product_id).push(item);}return [...byProduct.values()];}
-function categories(){return ['Toutes',...[...new Set(state.items.map(i=>categoryName(i.category)))].sort((a,b)=>a.localeCompare(b,'fr'))];}
+function categories(){return ['Toutes',...(state.catalogCategories||[])];}
 function productGrid(items,{max=Infinity}={}){
  if(!items.length)return emptyResult('Le catalogue prend forme','Les produits apparaîtront ici après validation de leur publication.');
  return el('div',{className:'product-grid'},...items.slice(0,max).map(group=>productCard(group)));
@@ -157,6 +157,7 @@ function hero(){
   fetchpriority:'high',decoding:'async','aria-hidden':'true'});
  const search=createHeroSearch({
   products:state.items,
+  onSuggest:query=>api.catalogSuggestions(SITE_SLUG,query),
   onSearch:query=>{
    state.search=query;state.category='Toutes';
    nav('/catalogue?q='+encodeURIComponent(query));
@@ -266,46 +267,90 @@ function home(){
 }
 function catalogPage(){
  const params=new URLSearchParams(route().split('?')[1]||'');
- if(params.has('categorie'))state.category=params.get('categorie');
- if(params.has('q')){state.search=(params.get('q')||'').slice(0,120);state.category='Toutes';}
- const filtered=()=> {
-  const q=state.search.trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
-  const group=products().filter(g=>{
-   const p=g[0],hay=(p.title+' '+(p.vendor||'')+' '+(p.category||'')+' '+g.map(v=>v.sku+' '+v.variant_title).join(' ')).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
-   return (state.category==='Toutes'||categoryName(p.category)===state.category)&&(!q||hay.includes(q));
-  });
-  if(state.sort==='price-low')group.sort((a,b)=>Math.min(...a.map(p=>p.price_minor))-Math.min(...b.map(p=>p.price_minor)));
-  if(state.sort==='price-high')group.sort((a,b)=>Math.min(...b.map(p=>p.price_minor))-Math.min(...a.map(p=>p.price_minor)));
-  if(state.sort==='name')group.sort((a,b)=>a[0].title.localeCompare(b[0].title,'fr'));
-  return group;
- };
- const search=el('input',{type:'search',className:'catalog-search',placeholder:'Un équipement, une référence, un fabricant…',
- 'aria-label':'Rechercher un équipement',value:state.search,autocomplete:'off'});
+ state.search=(params.get('q')||state.search||'').slice(0,120);
+ state.category=(params.get('categorie')||state.category||'Toutes');
+ const search=el('input',{type:'search',className:'catalog-search',
+  placeholder:'Équipement, référence ou fabricant…',
+  'aria-label':'Rechercher un équipement',value:state.search,autocomplete:'off'});
  const categoriesRow=el('div',{className:'filter-pills'});
- const results=el('div',{className:'catalog-results'});
- const count=el('span',{className:'catalog-count'});
+ const results=el('div',{className:'catalog-results','aria-live':'polite'});
+ const counter=el('span',{className:'catalog-count'},'Chargement…');
  const sort=el('select',{className:'sort-select','aria-label':'Trier les produits'},
- ...[['name','Nom A → Z'],['price-low','Prix croissant'],['price-high','Prix décroissant']]
- .map(([value,label])=>el('option',{value,selected:value===state.sort},label)));
- function apply(){
-  const groups=filtered();
-  count.textContent=groups.length+' produit'+(groups.length>1?'s':'');
-  results.replaceChildren(productGrid(groups));
-  categoriesRow.replaceChildren(...categories().map(cat=>button(cat,()=>{
-   state.category=cat;apply();
+  ...[['name','Nom A → Z'],['price-low','Prix croissant'],['price-high','Prix décroissant']]
+  .map(([value,label])=>el('option',{value,selected:value===state.sort},label)));
+ const pager=el('div',{className:'catalog-pager'});
+ let positions=[null],pageIndex=0,requestId=0,next=null,hasMore=false;
+ function drawCategories(){
+  categoriesRow.replaceChildren(...['Toutes',...(state.catalogCategories||[])].map(cat=>button(cat,()=>{
+   if(state.category===cat)return;
+   state.category=cat;
+   positions=[null];pageIndex=0;
+   drawCategories();load();
   },'filter-pill'+(cat===state.category?' active':''))));
  }
- search.addEventListener('input',debounce(e=>{state.search=e.target.value;apply();},100));
- sort.addEventListener('change',()=>{state.sort=sort.value;apply();});
- const page=el('div',{className:'catalog-page page-container'},
- el('div',{className:'catalog-intro'},strap('CATALOGUE PROFESSIONNEL'),el('h1',{},'Les outils de votre excellence.'),bodyCopy('Parcourez les équipements publiés et composez votre sélection.')),
- el('div',{className:'catalog-controls'},el('div',{className:'search-wrap'},ico('search'),search),
- el('div',{className:'sort-wrap'},count,sort)),
- categoriesRow,results);
- apply();return page;
+ function updatePager(){
+  pager.replaceChildren();
+  const previous=button('← Précédent',()=>{
+   if(pageIndex===0)return;
+   pageIndex-=1;load();
+  },'btn-outline dark-outline');
+  previous.disabled=pageIndex===0;
+  const nextButton=button('Suivant →',()=>{
+   if(!hasMore||!next)return;
+   positions=positions.slice(0,pageIndex+1);positions.push(next);
+   pageIndex+=1;load();
+  },'btn-dark');
+  nextButton.disabled=!hasMore;
+  pager.append(previous,el('span',{className:'catalog-page-indicator'},'Page '+(pageIndex+1)),nextButton);
+ }
+ async function load(){
+  const id=++requestId;
+  results.replaceChildren(el('div',{className:'catalog-loading',role:'status'},'Recherche dans le catalogue…'));
+  counter.textContent='Recherche…';hasMore=false;updatePager();
+  try{
+   const page=await api.catalogPage(SITE_SLUG,{query:state.search,
+    category:state.category==='Toutes'?null:state.category,
+    sort:state.sort,cursor:positions[pageIndex],limit:24});
+   if(id!==requestId||!document.contains(results))return;
+   const byProduct=new Map();
+   for(const item of page.items){
+    if(!byProduct.has(item.product_id))byProduct.set(item.product_id,[]);
+    byProduct.get(item.product_id).push(item);
+   }
+   const groups=[...byProduct.values()];
+   results.replaceChildren(groups.length?productGrid(groups):
+    emptyResult('Aucun résultat','Essayez une autre référence, un fabricant ou une catégorie.'));
+   counter.textContent=page.items.length+' référence'+(page.items.length>1?'s':'')+' sur cette page';
+   hasMore=page.has_more;next=page.next_cursor;
+   updatePager();
+  }catch(error){
+   if(id!==requestId||!document.contains(results))return;
+   results.replaceChildren(el('div',{className:'catalog-error',role:'alert'},
+    el('h3',{},'Recherche momentanément indisponible'),
+    bodyCopy(error.message||'Impossible de charger les références.'),
+    button('Réessayer',()=>load(),'btn-dark')));
+   counter.textContent='Erreur';
+   hasMore=false;updatePager();
+  }
+ }
+ const queue=debounce(()=>{positions=[null];pageIndex=0;load();},270);
+ search.addEventListener('input',event=>{state.search=event.target.value.slice(0,120);queue();});
+ sort.addEventListener('change',()=>{state.sort=sort.value;positions=[null];pageIndex=0;load();});
+ const container=el('div',{className:'catalog-page page-container'},
+  el('div',{className:'catalog-intro'},strap('CATALOGUE PROFESSIONNEL'),
+   el('h1',{},'Les outils de votre excellence.'),
+   bodyCopy('Des résultats récupérés au fil de votre recherche, sans télécharger l’intégralité du catalogue.')),
+  el('div',{className:'catalog-controls'},
+   el('div',{className:'search-wrap'},ico('search'),search),
+   el('div',{className:'sort-wrap'},counter,sort)),
+  categoriesRow,results,pager);
+ drawCategories();
+ // The DOM is mounted by shell() immediately after this function returns.
+ queueMicrotask(()=>{if(document.contains(container))load();});
+ return container;
 }
-function productPage(handle){
- const group=products().find(g=>g[0].product_handle===decodeURIComponent(handle||''));
+
+function productPage(handle,group=[]){
  if(!group)return el('div',{className:'page-container error-page'},strap('RÉFÉRENCE INTROUVABLE'),
  el('h1',{},'Ce produit n’est pas disponible.'),bodyCopy('Il a peut-être été retiré du catalogue.'),link('Retour au catalogue','/catalogue','btn-dark'));
  const p=group[0];
@@ -353,12 +398,12 @@ function productPage(handle){
  section('product-cta','detail-cta',el('h2',{},'Une question sur cette référence ?'),bodyCopy('Ajoutez-la à votre sélection et préparez votre demande professionnelle.'),link('Voir mon projet','/panier','btn-dark')));
 }
 function cartPage(){
- const lines=cart.lines(state.items);
+ const lines=cart.lines(state.cartRows);
  const items=el('div',{className:'cart-items'});
- const subtotal=el('strong',{className:'basket-total'},euro(cart.subtotal(state.items))+' HT');
+ const subtotal=el('strong',{className:'basket-total'},euro(cart.subtotal(state.cartRows))+' HT');
  const totalNote=el('p',{className:'muted'},'Estimation hors taxes, hors livraison. Prix et disponibilités confirmés lors du traitement de la demande.');
  function update(){
-  items.replaceChildren(...cart.lines(state.items).map(({product:p,variant_id,quantity:q})=>{
+  items.replaceChildren(...cart.lines(state.cartRows).map(({product:p,variant_id,quantity:q})=>{
    const inc=button('+',()=>{cart.set(variant_id,Math.min(999,q+1));update();},'stepper-btn');
    const dec=button('−',()=>{cart.set(variant_id,q-1);update();},'stepper-btn');
    return el('div',{className:'cart-line'},picture(p,'cart-image'),
@@ -366,8 +411,13 @@ function cartPage(){
    el('div',{className:'cart-controls'},el('div',{className:'stepper'},dec,el('span',{},String(q)),inc),
    button('Retirer',()=>{cart.remove(variant_id);update();},'text-link'))));
   }));
-  if(!cart.count()||!items.children.length)items.append(emptyResult('Votre sélection est vide','Explorez le catalogue pour composer votre projet.'));
-  subtotal.textContent=euro(cart.subtotal(state.items))+' HT';requestBtn.disabled=!cart.lines(state.items).length||!state.settings?.published;refreshCounts();
+  if(!items.children.length){
+   if(cart.count())items.append(el('div',{className:'notice',role:'alert'},
+     'Certaines références de votre sélection ne sont pas disponibles. Vos choix sont conservés.',
+     button('Vider cette sélection',()=>{cart.clear();update();},'text-link')));
+   else items.append(emptyResult('Votre sélection est vide','Explorez le catalogue pour composer votre projet.'));
+  }
+  subtotal.textContent=euro(cart.subtotal(state.cartRows))+' HT';requestBtn.disabled=!cart.lines(state.cartRows).length||!state.settings?.published;refreshCounts();
  }
  const requestBtn=button('Demander un devis',()=>nav('/devis'),'btn-dark full-width','arrow');
  requestBtn.disabled=!lines.length||!state.settings?.published;
@@ -380,7 +430,7 @@ function cartPage(){
  update();return page;
 }
 function quotePage(){
- const lines=cart.lines(state.items);
+ const lines=cart.lines(state.cartRows);
  if(!lines.length)return el('div',{className:'page-container empty-page'},emptyResult('Pas encore de sélection','Ajoutez des produits au panier avant de demander un devis.'),link('Explorer le catalogue','/catalogue','btn-dark'));
  if(!state.settings?.store_id)return el('div',{className:'page-container'},emptyResult('Demandes non ouvertes','La boutique CHR est encore en préparation.'));
  if(!state.user)return el('div',{className:'page-container narrow'},strap('DEMANDE PROFESSIONNELLE'),el('h1',{},'Connectez-vous pour poursuivre.'),bodyCopy('Un compte permet de suivre votre demande sans perdre votre sélection.'),link('Créer mon accès','/connexion','btn-dark'));
@@ -402,7 +452,7 @@ function quotePage(){
  return el('div',{className:'page-container quote-page'},strap('DERNIÈRE ÉTAPE'),el('h1',{},'Votre projet prend forme.'),bodyCopy('Précisez vos besoins pour transmettre votre demande à CHR.'),
  el('div',{className:'quote-grid'},el('div',{className:'quote-content'},form),
  el('aside',{className:'quote-summary'},el('h2',{},'Votre sélection'),...lines.map(x=>el('div',{className:'quote-item'},el('span',{},x.product.title+' × '+x.quantity),el('strong',{},euro(x.product.price_minor*x.quantity)))),
- el('div',{className:'quote-total'},'Estimation HT',el('strong',{},euro(cart.subtotal(state.items)))))));
+ el('div',{className:'quote-total'},'Estimation HT',el('strong',{},euro(cart.subtotal(state.cartRows)))))));
 }
 function projectPage(){
  return el('div',{},section('project-hero','project-hero',
@@ -461,7 +511,7 @@ function authPage(mode='login'){
    try{
     if(stateMode==='signup'){await api.signup(email.value.trim(),password.value);notify('Compte demandé. Vérifiez votre boîte e-mail pour confirmer votre adresse.','success');switchMode('login');return;}
     if(stateMode==='recover'){await api.recover(email.value.trim());notify('Si ce compte existe, un lien de récupération a été envoyé.','success');switchMode('login');return;}
-    await api.login(email.value.trim(),password.value);state.user=await api.user();state.settings=await api.settings(SITE_SLUG);state.items=state.settings?await api.catalog(state.settings.store_id):[];if(state.settings?.published)cart.prune(state.items);await loadPersonal();notify('Vous êtes connecté.','success');nav('/compte');
+    await api.login(email.value.trim(),password.value);state.user=await api.user();state.settings=await api.settings(SITE_SLUG);state.items=state.settings?await api.catalog(state.settings.store_id,SITE_SLUG):[];await loadPersonal();notify('Vous êtes connecté.','success');nav('/compte');
    }catch(error){notify(error.message,'error');}
    finally{submit.disabled=false;}
   }},field('Adresse e-mail',email),password?field('Mot de passe',password):null,submit);
@@ -578,11 +628,27 @@ async function render(){
  const sequence=++renderSequence;
  const r=route();
  if(r==='/compte'&&state.user&&state.settings){try{await loadPersonal();}catch(e){notify(e.message,'error');}}
+ // Request only the selected variants; do not mistake a 24-row catalog page for the whole catalog.
+ if(r==='/panier'||r==='/devis'){
+  try{
+   state.cartRows=await api.catalogCartLines(SITE_SLUG,Object.keys(cart.items));
+   state.cartError=null;
+  }catch(error){
+   state.cartError=error.message||'Prix indisponibles';
+   state.cartRows=[];
+  }
+  if(sequence!==renderSequence)return;
+ }
  const scroll=window.scrollY;
  let view;
  if(r==='/'||r==='/accueil')view=home();
  else if(r.startsWith('/catalogue'))view=catalogPage();
- else if(r.startsWith('/produit/'))view=productPage(r.slice('/produit/'.length).split('?')[0]);
+ else if(r.startsWith('/produit/')){
+  const handle=r.slice('/produit/'.length).split('?')[0];
+  const detail=await api.catalogProduct(SITE_SLUG,decodeURIComponent(handle));
+  if(sequence!==renderSequence)return;
+  view=productPage(handle,detail);
+ }
  else if(r==='/panier')view=cartPage();
  else if(r==='/devis')view=quotePage();
  else if(r==='/projet')view=projectPage();
@@ -626,8 +692,8 @@ async function boot(){
   if(settings.status==='rejected')throw settings.reason;
   state.settings=settings.value;
   state.user=user.status==='fulfilled'?user.value:null;
-  state.items=state.settings?await api.catalog(state.settings.store_id):[];
-  if(state.settings?.published)cart.prune(state.items);
+  state.items=state.settings?await api.catalog(state.settings.store_id,SITE_SLUG):[];
+  state.catalogCategories=state.settings?(await api.catalogCategories(SITE_SLUG)).map(x=>x.name):[];
   if(state.user&&state.settings)await loadPersonal();
   await render();
  }catch(e){

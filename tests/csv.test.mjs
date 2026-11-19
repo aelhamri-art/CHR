@@ -15,3 +15,11 @@ test('strict import validation',()=>{
  assert.throws(()=>catalogFromCsv('Handle,Title,SKU,price_eur\nx,Produit,SKU,10\nx,Produit,SKU,10'));
  assert.throws(()=>parseCsv('"unterminated'));
 });
+
+test('supplier category maps from CSV without changing status/price',()=>{
+ const rows=catalogFromCsv('Handle,Title,Vendor,Category,Variant SKU,Variant Price,Variant Grams,Published\nfour-x,Four mixte,CHR,Cuisson,FOUR-X,1200.00,7000,TRUE');
+ assert.equal(rows.length,1);
+ assert.equal(rows[0].category,'Cuisson');
+ assert.equal(rows[0].price_minor,120000);
+ assert.equal(rows[0].status,'active');
+});

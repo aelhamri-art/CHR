@@ -1,15 +1,20 @@
--- CHR — audited editable configuration and idempotent stock adjustments.
--- Applied to Supabase CHR, 17 November 2026.
+-- CHR : audited mutations for editable configuration and atomic stock changes.
+-- Committed as a separate migration and designed for authenticated API calls only.
+-- Never trust a client-supplied actor or store membership.
 create or replace function app_private.audit_mutation() returns trigger
 language plpgsql security definer set search_path = ''
 as $$
 declare
-  oldj jsonb; newj jsonb; st uuid; rowid uuid;
+  oldj jsonb;
+  newj jsonb;
+  st uuid;
+  rowid uuid;
 begin
   oldj := case when tg_op in ('UPDATE','DELETE') then to_jsonb(old) else null end;
   newj := case when tg_op in ('UPDATE','INSERT') then to_jsonb(new) else null end;
   st := coalesce((newj->>'store_id')::uuid,(oldj->>'store_id')::uuid);
   rowid := coalesce((newj->>'id')::uuid,(oldj->>'id')::uuid);
+  -- Do not persist customer PII or profile addresses in immutable audit events.
   if tg_table_name in ('customers','locations') then
     oldj := case when oldj is null then null else jsonb_build_object('id',oldj->'id','redacted',true) end;
     newj := case when newj is null then null else jsonb_build_object('id',newj->'id','redacted',true) end;
@@ -27,8 +32,11 @@ begin
     execute format('create trigger trg_%I_audit after insert or update or delete on public.%I for each row execute function app_private.audit_mutation()',t,t);
   end loop;
 end $$;
-alter table public.inventory_movements add column idempotency_key uuid;
+
+alter table public.inventory_movements
+ add column idempotency_key uuid;
 create unique index idx_inventory_movements_idempotency on public.inventory_movements(store_id,idempotency_key) where idempotency_key is not null;
+
 create or replace function public.adjust_inventory(
   p_store_id uuid, p_variant_id uuid, p_location_id uuid,
   p_delta integer, p_reason text, p_idempotency_key uuid
@@ -36,7 +44,13 @@ create or replace function public.adjust_inventory(
 language plpgsql security definer
 set search_path=''
 as $$
-declare v_level_id uuid; v_previous integer; v_reserved integer; v_next integer; v_event uuid; v_existing uuid;
+declare
+ v_level_id uuid;
+ v_previous integer;
+ v_reserved integer;
+ v_next integer;
+ v_event uuid;
+ v_existing uuid;
 begin
  if auth.uid() is null or not app_private.can_manage_store(p_store_id) then
    raise exception 'Access denied' using errcode='42501';
@@ -55,9 +69,12 @@ begin
  insert into public.inventory_levels (store_id, variant_id, location_id,on_hand,reserved)
  values (p_store_id,p_variant_id,p_location_id,0,0)
  on conflict (store_id,variant_id,location_id) do nothing;
+
  select id,on_hand,reserved into v_level_id,v_previous,v_reserved
  from public.inventory_levels where store_id=p_store_id and variant_id=p_variant_id and location_id=p_location_id
  for update;
+
+ -- The lock on this inventory level makes repeated operations serial at this SKU/location.
  select id into v_existing from public.inventory_movements
  where store_id=p_store_id and idempotency_key=p_idempotency_key;
  if found then

@@ -103,3 +103,32 @@ test('V2 mobile hero fits 320px, search and rail have no horizontal overflow',as
  expect(metrics.overflow).toBeLessThanOrEqual(2);
  expect(metrics.searchWidth).toBeLessThanOrEqual(metrics.pageWidth);
 });
+
+test('catalogue uses server cursor pagination: 24 then 9, without loading all records',async({page})=>{
+ const calls=[];
+ await page.route('**/rest/v1/rpc/chr_catalog_page',async route=>{
+  const body=JSON.parse(route.request().postData()||'{}');
+  calls.push(body);
+  const second=!!body.p_cursor_id;
+  const size=second?9:24;
+  const rows=Array.from({length:size},(_,i)=>{
+   const id=second?i+24:i;
+   const uid='11111111-1111-4111-8111-'+String(id).padStart(12,'0');
+   return {store_id:'22222222-2222-4222-8222-222222222222',
+    product_id:uid,variant_id:uid,product_handle:'produit-'+id,
+    title:'Équipement CHR '+String(id).padStart(5,'0'),variant_title:'Standard',
+    sku:'SKU-'+id,price_minor:10000+id*100,weight_grams:500,category:'Cuisson'};
+  });
+  await route.fulfill({status:200,contentType:'application/json',
+    body:JSON.stringify({items:rows,has_more:!second,
+      next_cursor:second?null:{title:rows.at(-1).title,price:rows.at(-1).price_minor,id:rows.at(-1).variant_id}})});
+ });
+ await page.goto('/storefront/#/catalogue',{waitUntil:'domcontentloaded'});
+ await expect(page.locator('.catalog-results .product-card')).toHaveCount(24,{timeout:12000});
+ await page.locator('.catalog-pager button', {hasText:'Suivant'}).click();
+ await expect(page.locator('.catalog-results .product-card')).toHaveCount(9);
+ expect(calls).toHaveLength(2);
+ expect(calls[0].p_limit).toBe(24);
+ expect(calls[1].p_cursor_id).toBeTruthy();
+ expect(calls.every(call=>call.p_limit<=48)).toBe(true);
+});

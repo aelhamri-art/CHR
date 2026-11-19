@@ -178,33 +178,100 @@ async function renderPage(){
  }catch(e){setMain(errorView(e));}
 }
 async function renderDashboard(){
- const [products,variants,customers,orders,locations,alerts]=await Promise.all([
- api.list('products',state.store.id),api.list('product_variants',state.store.id),
- api.list('customers',state.store.id),api.list('orders',state.store.id),
- api.list('locations',state.store.id),api.list('inventory_levels',state.store.id)
- ]);
+ const counts=await api.adminDashboardCounts(state.store.id);
  if(state.route!=='dashboard')return;
- const total=orders.filter(o=>o.payment_status==='paid'||o.payment_status==='partially_refunded').reduce((a,o)=>a+Number(o.total_minor||0),0);
- const low=alerts.filter(a=>Number(a.on_hand||0)-Number(a.reserved||0)<3);
+ const money=formatMoney(counts.paid_order_value_minor||0);
  const cards=[
- ['Produits',products.length,'Fiches catalogue'],['Références SKU',variants.length,'Variantes actives ou archivées'],
- ['Clients B2B',customers.length,'Comptes enregistrés'],['Commandes',orders.length,'Opérations stockées'],
- ['CA encaissé',formatMoney(total),'D’après les commandes au statut payé'],['Stock faible',low.length,'Moins de 3 unités disponibles']
+  ['Produits',counts.products||0,'Total de fiches catalogue'],
+  ['Références SKU',counts.variants||0,'Variantes toutes pages confondues'],
+  ['Clients B2B',counts.customers||0,'Comptes enregistrés'],
+  ['Commandes',counts.orders||0,'Total enregistré en base'],
+  ['Commandes payées',money,'Valeur brute des commandes payées (hors déductions de remboursements)'],
+  ['Stock faible',counts.inventory_low||0,'Moins de trois unités disponibles']
  ];
- setMain(E('div',{},pageHeader('Vue d’ensemble','Données réelles, calculées sur la base CHR.'),E('section',{className:'metric-grid'},...cards.map(c=>E('div',{className:'metric'},E('p',{},c[0]),E('strong',{},c[1]),E('small',{},c[2])))),
- E('div',{className:'two-col'},panel(E('h2',{},'Actions utiles'),E('div',{className:'quick-actions'},
- btn('Créer un produit',()=>navigate('products'),'btn accent'),btn('Ajouter une variante',()=>navigate('product_variants')),
- btn('Configurer la livraison',()=>navigate('shipping_rates')),btn('Voir les stocks',()=>navigate('inventory_levels'))),
- E('p',{className:'muted'},'Aximus : emplacement réservé. Aucun agent n’exécute d’actions à ce stade.')),
+ setMain(E('div',{},pageHeader('Vue d’ensemble','Comptes exacts calculés dans PostgreSQL, jamais extrapolés d’une liste tronquée.'),
+ E('section',{className:'metric-grid'},...cards.map(c=>E('div',{className:'metric'},
+  E('p',{},c[0]),E('strong',{},c[1]),E('small',{},c[2])))),
+ E('div',{className:'two-col'},
+ panel(E('h2',{},'Actions utiles'),E('div',{className:'quick-actions'},
+  btn('Créer un produit',()=>navigate('products'),'btn accent'),
+  btn('Ajouter une variante',()=>navigate('product_variants')),
+  btn('Configurer la livraison',()=>navigate('shipping_rates')),
+  btn('Voir les stocks',()=>navigate('inventory_levels'))),
+ E('p',{className:'muted'},'Aximus : contrats d’intégration prévus, agent non activé.')),
  panel(E('h2',{},'État opérationnel'),E('dl',{className:'stats-list'},
- ...[['Entreprises',state.stores.length],['Entrepôts',locations.length],['Commandes ouvertes',orders.filter(o=>o.status==='open').length],['Références en stock faible',low.length]].map(([k,v])=>E('div',{},E('dt',{},k),E('dd',{},v)))),
- E('p',{className:'muted'},'Les paiements nécessitent un prestataire connecté et des webhooks testés.')))));
+  ...[['Entreprises accessibles',state.stores.length],['Entrepôts',counts.locations||0],
+   ['Commandes ouvertes',counts.orders_open||0],['Références en stock faible',counts.inventory_low||0]]
+   .map(([k,v])=>E('div',{},E('dt',{},k),E('dd',{},v)))),
+ E('p',{className:'muted'},'Les paiements bancaires nécessitent un prestataire réel, un webhook signé et une validation métier.')))));
 }
 function tableData(table,search){
  const q=search.trim().toLowerCase();
  return table.filter(row=>!q||Object.values(row).some(value=>String(value??'').toLowerCase().includes(q)));
 }
+
+/** Server-seek pagination: admin can browse 100k products without ever pulling them into memory. */
+async function renderLargeCatalog(key){
+ const spec=MODULES[key],storeId=state.store.id;
+ const filter=E('input',{type:'search',placeholder:'Référence, nom, fournisseur…',ariaLabel:'Rechercher dans le catalogue entier',className:'search-input'});
+ const counter=E('span',{className:'micro'},'Chargement…');
+ const tbody=E('tbody');
+ const table=E('table',{className:'data-table'},E('thead',{},
+  E('tr',{},...spec.columns.map(k=>E('th',{},columnLabel(k))),E('th',{},'Actions'))),tbody);
+ const pageActions=E('div',{className:'page-actions'});
+ const box=E('div',{className:'table-wrap'},table);
+ const errorLabel=E('p',{className:'error'});
+ let rows=[],hasMore=false,next=null,index=0,trail=[null],revision=0,query='',timer=null;
+ const exportButton=btn('Exporter cette page CSV',()=>{
+  const csv=exportCsv(rows,spec.columns);
+  const blob=new Blob(['\uFEFF',csv],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob);
+  const a=E('a',{href:url,download:'chr-'+key+'-page-'+(index+1)+'.csv'});
+  a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+ });
+ function draw(){
+  tbody.replaceChildren(...rows.map(row=>E('tr',{},
+   ...spec.columns.map(col=>E('td',{},E('span',{className:col==='status'?'pill':''},formatCell(row[col],col,key)))),
+   E('td',{className:'row-actions'},E('div',{className:'action-inline'},
+    btn('Modifier',()=>openForm(key,row),'text-btn'),
+    btn(key==='products'?'Archiver':'Supprimer',()=>deleteRecord(key,row),'text-btn danger'))))));
+  if(!rows.length)tbody.append(E('tr',{},E('td',{colspan:spec.columns.length+1},'Aucun résultat.')));
+  counter.textContent=rows.length+' résultats affichés — page '+(index+1);
+  exportButton.disabled=!rows.length;
+  pageActions.replaceChildren(
+   btn('← Précédent',()=>{if(index>0){index--;load();}},'btn',{disabled:index===0}),
+   E('span',{className:'micro'},'Page '+(index+1)),
+   btn('Suivant →',()=>{if(!hasMore||!next)return;trail=trail.slice(0,index+1);trail.push(next);index++;load();},'btn',{disabled:!hasMore}));
+ }
+ async function load(){
+  const current=++revision;
+  counter.textContent='Recherche serveur…';
+  try{
+   const page=await api.adminCatalogPage(storeId,key,{query,cursor:trail[index]});
+   if(current!==revision||state.route!==key)return;
+   rows=page.rows;hasMore=page.has_more;next=page.next_cursor;
+   errorLabel.textContent='';draw();
+  }catch(error){
+   if(current!==revision)return;
+   rows=[];hasMore=false;next=null;
+   errorLabel.textContent=error.message||'Erreur du catalogue';
+   draw();
+  }
+ }
+ filter.addEventListener('input',()=>{
+  clearTimeout(timer);
+  timer=setTimeout(()=>{query=filter.value;trail=[null];index=0;load();},280);
+ });
+ const buttons=[exportButton,btn('Créer',()=>openForm(key),'btn accent')];
+ const content=E('div',{},pageHeader(spec.label,
+  'Recherche dans tout le catalogue et pagination serveur — aucune limite silencieuse à 1 000 références.',
+  buttons),panel(E('div',{className:'table-toolbar'},filter,counter),errorLabel,box,pageActions));
+ setMain(content);
+ await load();
+}
+
 async function renderModule(key){
+ if(key==='products'||key==='product_variants')return renderLargeCatalog(key);
  const spec=MODULES[key],storeId=state.store.id;
  const rows=await api.list(key,storeId,{limit:1000});
  if(state.route!==key)return;
@@ -262,13 +329,49 @@ async function openForm(key,row=null){
  const spec=MODULES[key];
  if(spec.readOnly)return;
  let relations={};
- for(const f of spec.fields){if(f.type==='relation')relations[f.name]=await api.getRelated(f.table,state.store.id);}
+ for(const f of spec.fields){if(f.type==='relation'&&f.table!=='products')relations[f.name]=await api.getRelated(f.table,state.store.id);}
  const form=E('form',{className:'form-grid',id:'record-editor-form'});
  const controls=new Map();
  for(const f of spec.fields){
   const id='field-'+f.name;
   let input;
   const v=readableFieldValue(row?.[f.name],f);
+  if(f.type==='relation'&&f.table==='products'){
+   // Never load 1000+ parent products into a select. RLS-protected server search.
+   const search=E('input',{type:'search',placeholder:'Chercher par nom ou référence…',
+    ariaLabel:'Rechercher un produit parent'});
+   input=E('select',{id,name:f.name,required:!!f.required},
+    E('option',{value:''},'Sélectionner un produit'));
+   const status=E('small',{className:'micro'},'Commence à saisir un nom ou une référence.');
+   let revision=0,timer=null;
+   async function findProducts(query,initialId=null){
+    const current=++revision;status.textContent='Recherche dans le catalogue…';
+    try{
+     const page=await api.adminCatalogPage(state.store.id,'products',{query});
+     if(current!==revision)return;
+     const options=page.rows.map(p=>({value:p.id,label:p.title+' · '+p.handle}));
+     if(initialId&&!options.some(x=>x.value===initialId)){
+      const existing=await api.list('products',state.store.id,{limit:1,filters:{id:'eq.'+initialId}});
+      if(existing[0])options.unshift({value:existing[0].id,label:existing[0].title+' · '+existing[0].handle});
+     }
+     if(current!==revision)return;
+     input.replaceChildren(E('option',{value:''},'Sélectionner un produit'),
+      ...options.map(o=>E('option',{value:o.value,selected:o.value===initialId},o.label)));
+     input.value=initialId||'';
+     status.textContent=page.has_more?'Affichage limité aux 50 premières correspondances. Affine la recherche.':options.length+' correspondance(s).';
+    }catch(error){if(current===revision)status.textContent=error.message||'Recherche indisponible.';}
+   }
+   search.addEventListener('input',()=>{
+    clearTimeout(timer);
+    input.value='';
+    timer=setTimeout(()=>findProducts(search.value.trim()),270);
+   });
+   controls.set(f.name,input);
+   form.append(E('label',{className:'field'},E('span',{},f.label),
+    E('div',{className:'relation-lookup'},search,input,status)));
+   await findProducts('',row?.[f.name]||null);
+   continue;
+  }
   if(f.type==='select'||f.type==='relation'){
    const options=f.type==='relation'?(relations[f.name]||[]).map(r=>({value:r.id,label:r[f.display]||r.id})):f.options;
    input=E('select',{id,name:f.name,required:!!f.required},

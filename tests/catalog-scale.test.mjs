@@ -37,7 +37,7 @@ test('search suggestions use server RPC, with 2-char minimum',async()=>{
  const suggestions=await api.catalogSuggestions('chr','four');
  assert.equal(suggestions.length,1);
  assert.equal(requests[0].body.p_limit,5);
- assert.throws(()=>api.catalogSuggestions('chr','x'.repeat(90)),/Recherche trop longue/);
+ await assert.rejects(()=>api.catalogSuggestions('chr','x'.repeat(90)),/Recherche trop longue/);
 });
 test('cart reference fetch asks for exactly selected IDs, never catalog subset',async()=>{
  requests.length=0;

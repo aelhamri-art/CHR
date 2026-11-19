@@ -44,7 +44,7 @@ export function catalogFromCsv(source) {
   const status=first(obj,['status'])||((/^(true|1|oui)$/i.test(published))?'active':'draft');
   if(!handle||title.length<2||!sku)throw new Error('Ligne '+(index+2)+' : nom, handle ou SKU invalide.');
   if(!['draft','active','archived'].includes(status))throw new Error('Ligne '+(index+2)+' : statut invalide.');
-  const record={handle,title,vendor:first(obj,['vendor']),sku,
+  const record={handle,title,vendor:first(obj,['vendor']),category:first(obj,['category','product type','type']),sku,
    variant_title:first(obj,['variant_title','option1 value'])||'Par défaut',
    price_minor:parseMoney(rawPrice),weight_grams:parseInteger(weight),status};
   records.push(record);

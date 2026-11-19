@@ -204,7 +204,69 @@ function tableData(table,search){
  const q=search.trim().toLowerCase();
  return table.filter(row=>!q||Object.values(row).some(value=>String(value??'').toLowerCase().includes(q)));
 }
+
+/** Server-seek pagination: admin can browse 100k products without ever pulling them into memory. */
+async function renderLargeCatalog(key){
+ const spec=MODULES[key],storeId=state.store.id;
+ const filter=E('input',{type:'search',placeholder:'Référence, nom, fournisseur…',ariaLabel:'Rechercher dans le catalogue entier',className:'search-input'});
+ const counter=E('span',{className:'micro'},'Chargement…');
+ const tbody=E('tbody');
+ const table=E('table',{className:'data-table'},E('thead',{},
+  E('tr',{},...spec.columns.map(k=>E('th',{},columnLabel(k))),E('th',{},'Actions'))),tbody);
+ const pageActions=E('div',{className:'page-actions'});
+ const box=E('div',{className:'table-wrap'},table);
+ const errorLabel=E('p',{className:'error'});
+ let rows=[],hasMore=false,next=null,index=0,trail=[null],revision=0,query='',timer=null;
+ const exportButton=btn('Exporter cette page CSV',()=>{
+  const csv=exportCsv(rows,spec.columns);
+  const blob=new Blob(['\uFEFF',csv],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob);
+  const a=E('a',{href:url,download:'chr-'+key+'-page-'+(index+1)+'.csv'});
+  a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+ });
+ function draw(){
+  tbody.replaceChildren(...rows.map(row=>E('tr',{},
+   ...spec.columns.map(col=>E('td',{},E('span',{className:col==='status'?'pill':''},formatCell(row[col],col,key)))),
+   E('td',{className:'row-actions'},E('div',{className:'action-inline'},
+    btn('Modifier',()=>openForm(key,row),'text-btn'),
+    btn(key==='products'?'Archiver':'Supprimer',()=>deleteRecord(key,row),'text-btn danger'))))));
+  if(!rows.length)tbody.append(E('tr',{},E('td',{colspan:spec.columns.length+1},'Aucun résultat.'));
+  counter.textContent=rows.length+' résultats affichés — page '+(index+1);
+  exportButton.disabled=!rows.length;
+  pageActions.replaceChildren(
+   btn('← Précédent',()=>{if(index>0){index--;load();}},'btn',{disabled:index===0}),
+   E('span',{className:'micro'},'Page '+(index+1)),
+   btn('Suivant →',()=>{if(!hasMore||!next)return;trail=trail.slice(0,index+1);trail.push(next);index++;load();},'btn',{disabled:!hasMore}));
+ }
+ async function load(){
+  const current=++revision;
+  counter.textContent='Recherche serveur…';
+  try{
+   const page=await api.adminCatalogPage(storeId,key,{query,cursor:trail[index]});
+   if(current!==revision||state.route!==key)return;
+   rows=page.rows;hasMore=page.has_more;next=page.next_cursor;
+   errorLabel.textContent='';draw();
+  }catch(error){
+   if(current!==revision)return;
+   rows=[];hasMore=false;next=null;
+   errorLabel.textContent=error.message||'Erreur du catalogue';
+   draw();
+  }
+ }
+ filter.addEventListener('input',()=>{
+  clearTimeout(timer);
+  timer=setTimeout(()=>{query=filter.value;trail=[null];index=0;load();},280);
+ });
+ const buttons=[exportButton,btn('Créer',()=>openForm(key),'btn accent')];
+ const content=E('div',{},pageHeader(spec.label,
+  'Recherche dans tout le catalogue et pagination serveur — aucune limite silencieuse à 1 000 références.',
+  buttons),panel(E('div',{className:'table-toolbar'},filter,counter),errorLabel,box,pageActions));
+ setMain(content);
+ await load();
+}
+
 async function renderModule(key){
+ if(key==='products'||key==='product_variants')return renderLargeCatalog(key);
  const spec=MODULES[key],storeId=state.store.id;
  const rows=await api.list(key,storeId,{limit:1000});
  if(state.route!==key)return;

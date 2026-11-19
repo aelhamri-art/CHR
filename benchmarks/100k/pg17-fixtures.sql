@@ -6,10 +6,12 @@ insert into auth.users(id,email) values
  ('22000000-0000-4000-8000-000000000002','owner-b@staging.invalid');
 insert into public.stores(id,owner_user_id,slug,name) values
  ('a1000000-0000-4000-8000-000000000001','11000000-0000-4000-8000-000000000001','chr-scale-a','CHR STAGING TENANT A'),
- ('b2000000-0000-4000-8000-000000000002','22000000-0000-4000-8000-000000000002','chr-scale-b','CHR STAGING TENANT B');
+ ('b2000000-0000-4000-8000-000000000002','22000000-0000-4000-8000-000000000002','chr-scale-b','CHR STAGING TENANT B'),
+ ('c3000000-0000-4000-8000-000000000003','11000000-0000-4000-8000-000000000001','chr','CHR ROLLBACK TEST STORE');
 insert into public.storefront_settings(store_id,public_slug,brand_name) values
  ('a1000000-0000-4000-8000-000000000001','chr-scale-a','CHR Test A'),
- ('b2000000-0000-4000-8000-000000000002','chr-scale-b','CHR Test B');
+ ('b2000000-0000-4000-8000-000000000002','chr-scale-b','CHR Test B'),
+ ('c3000000-0000-4000-8000-000000000003','chr','CHR ROLLBACK FIXTURE');
 
 -- 10,000 parents, multiple sources and categories, ten variants per parent.
 insert into public.products(id,store_id,title,handle,status,vendor,product_type,created_by)

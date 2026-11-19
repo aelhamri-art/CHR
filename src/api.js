@@ -153,3 +153,8 @@ export async function adminCatalogPage(storeId,table,{query='',cursor=null}={}){
  });
  return {rows:Array.isArray(data?.rows)?data.rows:[],has_more:!!data?.has_more,next_cursor:data?.next_cursor??null};
 }
+
+/** Exact RLS-protected dashboard aggregates: never infer totals from a 500-row sample. */
+export async function adminDashboardCounts(storeId){
+ return rpc('chr_admin_dashboard_counts',{p_store_id:storeId});
+}

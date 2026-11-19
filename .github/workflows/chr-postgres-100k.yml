@@ -83,6 +83,51 @@ jobs:
             echo "TEST $test" | tee -a artifacts/transaction-regressions.log
             psql -X -v ON_ERROR_STOP=1 -f "$test" >>artifacts/transaction-regressions.log 2>&1
           done
+      - name: Concurrent order race, stock oversell, and idempotency replay evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/concurrency
+          psql -X -v ON_ERROR_STOP=1 -f benchmarks/100k/pg17-concurrency-fixtures.sql > artifacts/concurrency/setup.log 2>&1
+          variant_one='f6000000-0000-4000-8000-000000000001'
+          variant_two='f6000000-0000-4000-8000-000000000002'
+          pids=()
+          keys=()
+          for i in $(seq 1 16); do
+            key=$(printf 'a0000000-0000-4000-8000-%012d' "$i")
+            keys+=("$key")
+            psql -X -v ON_ERROR_STOP=1 -At -v order_key="$key" -v variant_id="$variant_one" -f benchmarks/100k/pg17-concurrency-worker.sql > "artifacts/concurrency/distinct-$i.log" 2>&1 &
+            pids+=("$!")
+          done
+          successes=0
+          rejected=0
+          for index in "${!pids[@]}"; do
+            i=$((index+1))
+            if wait "${pids[$index]}"; then
+              successes=$((successes+1))
+            else
+              grep -q 'Insufficient available inventory' "artifacts/concurrency/distinct-$i.log"
+              rejected=$((rejected+1))
+            fi
+          done
+          echo "DISTINCT KEYS: created=$successes, stock_rejected=$rejected" | tee artifacts/concurrency/counts.txt
+          test "$successes" -eq 1
+          test "$rejected" -eq 15
+          pids=()
+          same_key='b0000000-0000-4000-8000-000000000001'
+          for i in $(seq 1 16); do
+            psql -X -v ON_ERROR_STOP=1 -At -v order_key="$same_key" -v variant_id="$variant_two" -f benchmarks/100k/pg17-concurrency-worker.sql > "artifacts/concurrency/same-$i.log" 2>&1 &
+            pids+=("$!")
+          done
+          for pid in "${pids[@]}"; do wait "$pid"; done
+          created=$(grep -lE '"status": ?"created"' artifacts/concurrency/same-*.log | wc -l)
+          replayed=$(grep -lE '"status": ?"already_created"' artifacts/concurrency/same-*.log | wc -l)
+          echo "SAME KEY: created=$created, replayed=$replayed" | tee -a artifacts/concurrency/counts.txt
+          test "$created" -eq 1
+          test "$replayed" -eq 15
+          psql -X -v ON_ERROR_STOP=1 -f benchmarks/100k/pg17-concurrency-assert.sql > artifacts/concurrency/invariants.log 2>&1
+          cat artifacts/concurrency/counts.txt
+          cat artifacts/concurrency/invariants.log
       - name: Exhaustive 100K seek-pagination and PostgreSQL latency evidence
         shell: bash
         run: |

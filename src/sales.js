@@ -297,6 +297,7 @@ export async function businessPoliciesPage(storeId,isOwner,notify,onUpdated){
  const quoteLines=E('input',{type:'number',min:1,max:500,step:1,value:existing.quote_line_limit??250,disabled:!isOwner});
  const orderLines=E('input',{type:'number',min:1,max:500,step:1,value:existing.order_line_limit??250,disabled:!isOwner});
  const backorder=E('input',{type:'checkbox',checked:existing.allow_backorder_quotes??true,disabled:!isOwner});
+ const managerFinance=E('input',{type:'checkbox',checked:existing.allow_manager_manual_payment??false,disabled:!isOwner});
  form.append(
   E('h2',{},'Liberté commerciale encadrée'),
   label('Autoriser les prix négociés avec justification',negotiate),
@@ -304,6 +305,9 @@ export async function businessPoliciesPage(storeId,isOwner,notify,onUpdated){
   label('Nombre maximal de lignes par devis interne',quoteLines),
   label('Nombre maximal de lignes par commande',orderLines),
   label('Autoriser les devis avec articles à approvisionner',backorder),
+  E('h3',{},'Contrôles financiers'),
+  label('Autoriser les managers à confirmer des encaissements manuels',managerFinance),
+  E('p',{className:'notice-inline'},'Désactivé par défaut : seuls propriétaire et administrateurs enregistrent un paiement déclaré reçu. Cette option ne remplace pas la vérification bancaire.'),
   E('p',{className:'muted'},'Seul le propriétaire peut changer ces paramètres. Les prix finaux et leurs motifs sont contrôlés et historisés côté serveur.'),
   E('button',{type:'submit',className:'btn accent',disabled:!isOwner},'Enregistrer la politique'));
  form.addEventListener('submit',async ev=>{
@@ -315,7 +319,8 @@ export async function businessPoliciesPage(storeId,isOwner,notify,onUpdated){
     max_price_reduction_bps:parseInteger(max.value,{min:0,max:100})*100,
     quote_line_limit:parseInteger(quoteLines.value,{min:1,max:500}),
     order_line_limit:parseInteger(orderLines.value,{min:1,max:500}),
-    allow_backorder_quotes:backorder.checked
+    allow_backorder_quotes:backorder.checked,
+    allow_manager_manual_payment:managerFinance.checked
    };
    await api.saveBusinessPolicy(storeId,payload);
    notify('Règles commerciales enregistrées et contrôlées côté serveur.','success');

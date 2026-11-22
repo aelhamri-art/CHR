@@ -97,9 +97,12 @@ function makeQuoteLine(storeId,existing=null){
 }
 
 export async function salesQuotesPage(storeId,notify,onUpdated){
- const [quotes,customers]=await Promise.all([
+ const [quotes,customers,locations,profiles,conversions]=await Promise.all([
   api.list('chr_sales_quotes',storeId,{limit:100,order:'updated_at.desc'}),
-  api.list('customers',storeId,{limit:500,order:'created_at.desc'})
+  api.list('customers',storeId,{limit:500,order:'created_at.desc'}),
+  api.list('locations',storeId,{limit:100}),
+  api.list('shipping_profiles',storeId,{limit:100}),
+  api.list('chr_quote_conversions',storeId,{limit:1000})
  ]);
  const root=E('div');
  const hero=E('div',{className:'page-header'},E('div',{},
@@ -121,6 +124,10 @@ export async function salesQuotesPage(storeId,notify,onUpdated){
     ...(quote.status==='draft'?[button('Proposition envoyée',()=>transition(quote,'proposed'),'text-btn')]:[]),
     ...(quote.status==='proposed'?[button('Accord client confirmé',()=>transition(quote,'accepted'),'text-btn'),button('Refuser',()=>transition(quote,'declined'),'text-btn')]:[]),
     ...(quote.status==='accepted'?[button('Réviser',()=>openEditor(quote,true),'text-btn')]:[]),
+    ...(quote.status==='accepted'&&!conversions.some(c=>c.quote_id===quote.id)?
+     [button('Créer une commande',()=>convertAccepted(quote),'btn accent')]:[]),
+    ...(conversions.some(c=>c.quote_id===quote.id)?
+     [E('small',{className:'muted'},'Converti en commande')]:[]),
     ...(['declined','cancelled'].includes(quote.status)?[button('Réouvrir',()=>transition(quote,'draft'),'text-btn')]:[])
    );
    tbody.append(E('tr',{},
@@ -182,6 +189,48 @@ export async function salesQuotesPage(storeId,notify,onUpdated){
    });
    notify('État du devis mis à jour, motif historisé.','success');await onUpdated();
   }catch(e){notify(e.message,'error');}
+ }
+
+ function convertAccepted(quote){
+  if(!customers.length||!locations.length||!profiles.length){
+   notify('Pour convertir ce devis, crée une fiche client, un entrepôt et un profil de livraison.','error');return;
+  }
+  const dialog=E('dialog',{className:'os-confirm-dialog'});
+  const customer=E('select',{},E('option',{value:''},'Choisir le client'),
+   ...customers.map(c=>E('option',{value:c.id,selected:c.id===quote.customer_id},
+    c.company||c.email||c.first_name||c.id)));
+  const location=E('select',{},...locations.map(l=>E('option',{value:l.id},l.name)));
+  const profile=E('select',{},...profiles.map(p=>E('option',{value:p.id},p.name)));
+  const country=E('input',{value:'FR',maxLength:2,required:true});
+  const postal=E('input',{value:'33000',required:true});
+  const error=E('p',{className:'error'});
+  const submit=E('button',{type:'submit',className:'btn accent'},'Convertir en commande');
+  const close=()=>{dialog.close();dialog.remove();};
+  const form=E('form',{},
+   E('h2',{},'Créer une commande depuis le devis accepté'),
+   E('p',{},'Prix de la version acceptée. Stock, TVA et livraison sont recontrôlés par PostgreSQL.'),
+   label('Client B2B',customer),label('Entrepôt de préparation',location),
+   label('Profil de livraison',profile),label('Pays ISO',country),
+   label('Code postal',postal),error,
+   E('div',{className:'page-actions'},button('Annuler',close),submit));
+  const requestKey=crypto.randomUUID();
+  form.addEventListener('submit',async ev=>{
+   ev.preventDefault();
+   if(!customer.value){error.textContent='Choisis une fiche client.';return;}
+   submit.disabled=true;error.textContent='';
+   try{
+    const res=await api.rpc('chr_convert_accepted_quote_to_order',{
+     p_store_id:storeId,p_quote_id:quote.id,p_expected_revision:quote.revision,
+     p_customer_id:customer.value,p_location_id:location.value,
+     p_shipping_profile_id:profile.value,p_country:country.value.trim().toUpperCase(),
+     p_postal:postal.value.trim(),p_idempotency_key:requestKey
+    });
+    close();notify('Devis converti : commande '+(res.order_number||res.order_id)+' créée.','success');
+    await onUpdated();
+   }catch(e){error.textContent=e.message||'Conversion refusée. Vérifie stock et tarifs.';}
+   finally{submit.disabled=false;}
+  });
+  dialog.append(form);document.body.append(dialog);dialog.showModal();customer.focus();
  }
 
  function openEditor(current=null,reopen=false){

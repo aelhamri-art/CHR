@@ -11,6 +11,9 @@ function el(tag,props={},...children){
   else if(key==='type')node.type=value;
   else if(key==='name')node.name=value;
   else if(key==='required')node.required=!!value;
+  else if(key==='disabled')node.disabled=!!value;
+  else if(key==='checked')node.checked=!!value;
+  else if(key==='selected')node.selected=!!value;
   else node.setAttribute(key,String(value));
  }
  children.flat().forEach(c=>{if(c!==null&&c!==undefined)node.append(c instanceof Node?c:document.createTextNode(String(c)));});
@@ -89,6 +92,7 @@ export async function ordersPanel(storeId,onUpdated,notify){
    lines.append(row);
   }
   addLine();
+  const createKey=crypto.randomUUID();
   const create=actionForm('Nouvelle commande','Les montants, le port, la TVA et la réservation du stock sont calculés dans PostgreSQL.',[
    field('Client',customer),field('Entrepôt',location),field('Profil de livraison',profile),
    field('Pays ISO',country),field('Code postal',postal),field('Variantes × quantités',lines),
@@ -103,7 +107,7 @@ export async function ordersPanel(storeId,onUpdated,notify){
     const result=await api.rpc('create_order',{
      p_store_id:storeId,p_customer_id:customer.value,p_location_id:location.value,
      p_shipping_profile_id:profile.value,p_country:country.value.trim().toUpperCase(),
-     p_postal:postal.value.trim(),p_lines:entries,p_idempotency_key:crypto.randomUUID()
+     p_postal:postal.value.trim(),p_lines:entries,p_idempotency_key:createKey
     });
     notify('Commande #'+result.order_number+' créée en base, total '+formatMoney(result.total_minor),'success');await onUpdated();
    }catch(error){notify(error.message,'error');}
@@ -127,19 +131,67 @@ export async function ordersPanel(storeId,onUpdated,notify){
     catch(err){notify(err.message,'error');}
     finally{b.disabled=false;}
    }));
-   const eligible=orderList.filter(o=>o.payment_status==='paid'&&o.fulfillment_status==='unfulfilled');
+   // Split deliveries are a first-class workflow. A single order can have
+   // multiple shipments; each exact delivery consumes only its reserved stock.
+   const eligible=orderList.filter(o=>o.payment_status==='paid'
+      &&['unfulfilled','partial'].includes(o.fulfillment_status));
    if(eligible.length){
-    const chosen=el('select',{},...eligible.map(o=>el('option',{value:o.id},'#'+o.order_number)));
-    const carrier=el('input',{required:true,placeholder:'Transporteur / remise directe'});
-    const tracking=el('input',{required:true,minLength:'4',placeholder:'Numéro de suivi ou référence de remise'});
-    outer.append(actionForm('Confirmer une expédition','Cette action débite définitivement le stock réservé. Aucune étiquette transporteur n’est générée.',[
-     field('Commande payée',chosen),field('Transporteur',carrier),field('Suivi',tracking),
-     el('button',{type:'submit',className:'btn accent'},'Marquer expédiée')
-    ],async e=>{
-     e.preventDefault();const b=e.currentTarget.querySelector('[type=submit]');b.disabled=true;
-     try{await api.rpc('fulfill_paid_order',{p_store_id:storeId,p_order_id:chosen.value,p_carrier:carrier.value.trim(),p_tracking:tracking.value.trim()});notify('Expédition confirmée et stock débité.','success');await onUpdated();}
-     catch(err){notify(err.message,'error');}
-     finally{b.disabled=false;}
+    const chosen=el('select',{},...eligible.map(o=>el('option',{value:o.id},
+      '#'+o.order_number+' · '+(o.fulfillment_status==='partial'?'Expédition partielle':'À expédier'))));
+    const carrier=el('input',{required:true,maxLength:120,placeholder:'Transporteur / remise directe'});
+    const tracking=el('input',{required:true,minLength:4,maxLength:200,
+       placeholder:'Numéro de suivi ou référence de remise'});
+    const rows=el('div',{className:'workflow-lines'});
+    const message=el('p',{className:'muted'},'Choisis une commande pour connaître les quantités restantes.');
+    let validRows=[];
+    async function loadRemaining(){
+     rows.replaceChildren();validRows=[];
+     message.textContent='Vérification des réservations et expéditions…';
+     try{
+      const progress=await api.rpc('chr_order_dispatch_progress',{
+        p_store_id:storeId,p_order_id:chosen.value});
+      for(const line of (progress||[]).filter(x=>Number(x.remaining)>0)){
+       const quantity=el('input',{type:'number',min:0,max:Number(line.remaining),
+        step:1,value:Number(line.remaining)});
+       const card=el('div',{className:'workflow-line'},
+        el('strong',{},line.sku||line.product_title),
+        el('small',{className:'muted'},
+         'Commandé '+line.ordered+' • Déjà expédié '+line.dispatched+
+         ' • Disponible à expédier '+line.remaining),
+        field('Quantité à expédier',quantity));
+       rows.append(card);validRows.push({line,quantity});
+      }
+      message.textContent=validRows.length+' ligne(s) à préparer. Mettre 0 pour ne pas inclure un article.';
+      if(!validRows.length)message.textContent='Aucune quantité restante à expédier.';
+     }catch(e){message.textContent=e.message||'Impossible de lire les expéditions.';}
+    }
+    chosen.addEventListener('change',loadRemaining);
+    await loadRemaining();
+    const shipmentKey=crypto.randomUUID();
+    outer.append(actionForm('Expédition partielle ou complète',
+      'Chaque lot est enregistré séparément. Les quantités restantes et le stock sont recalculés côté serveur.',[
+      field('Commande payée',chosen),message,rows,
+      field('Transporteur / remise',carrier),field('Suivi / remise',tracking),
+      el('button',{type:'submit',className:'btn accent'},'Enregistrer cette expédition')
+    ],async event=>{
+     event.preventDefault();
+     const button=event.currentTarget.querySelector('[type=submit]');
+     button.disabled=true;
+     try{
+      const lines=validRows.map(({line,quantity})=>({
+       order_line_id:line.order_line_id,
+       quantity:parseInteger(quantity.value,{min:0,max:Number(line.remaining)})
+      })).filter(x=>x.quantity>0);
+      if(!lines.length)throw Error('Choisis au moins un article à expédier.');
+      const result=await api.rpc('chr_dispatch_order_lines',{
+       p_store_id:storeId,p_order_id:chosen.value,p_lines:lines,
+       p_carrier:carrier.value.trim(),p_tracking:tracking.value.trim(),
+       p_request_key:shipmentKey
+      });
+      notify('Expédition enregistrée · '+result.quantity+' unité(s). Statut : '+result.fulfillment_status,'success');
+      await onUpdated();
+     }catch(error){notify(error.message||'Expédition refusée','error');}
+     finally{button.disabled=false;}
     }));
    }
    const cancellable=orderList.filter(o=>o.payment_status==='pending'&&o.fulfillment_status==='unfulfilled');

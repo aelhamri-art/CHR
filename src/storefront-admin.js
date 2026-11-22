@@ -7,6 +7,8 @@ const E=(tag,attrs={},...children)=>{
   else if(key==='onSubmit')node.addEventListener('submit',value);
   else if(key==='onClick')node.addEventListener('click',value);
   else if(key==='checked')node.checked=!!value;
+  else if(key==='selected')node.selected=!!value;
+  else if(key==='disabled')node.disabled=!!value;
   else if(key==='value')node.value=value??'';
   else if(key==='type')node.type=value;
   else if(key==='required')node.required=!!value;
@@ -45,7 +47,7 @@ export async function storefrontAdminPage(storeId,onSaved,notify,storeSlug='chr'
  const form=E('form',{className:'storefront-config'});
  const save=E('button',{type:'submit',className:'btn accent'},current.published?'Enregistrer et actualiser':'Enregistrer le brouillon');
  const legalStatus=E('div',{className:'notice-inline'},
- 'Publication bloquée sans coordonnées, mentions légales, politique de confidentialité et CGV approuvées (100 caractères minimum chacune), ainsi qu’un produit actif photographié.');
+ 'Publication bloquée sans email officiel, documents juridiques présents (minimum technique : 100 caractères chacun, soumis à revue), et produit actif photographié.');
  const sections=[
   section('Identité publique','Ces informations apparaissent sur le site client. Ne pas utiliser les éléments graphiques d’AXIUM Commerce OS comme marque publique sans accord.',
   [field('Adresse courte',f.slug),field('Marque affichée',f.brand),field('Sur-titre',f.eyebrow),field('Promesse principale',f.headline),field('Argumentaire',f.subline),field('E-mail de contact',f.contact),field('Image hero (chemin de fichier approuvé)',f.image)]),
@@ -91,7 +93,8 @@ export async function storefrontAdminPage(storeId,onSaved,notify,storeSlug='chr'
  E('div',{className:'page-header'},E('div',{},E('div',{className:'eyebrow'},'ADMINISTRATION / SITE CLIENT'),
  E('h1',{},'Boutique CHR'),E('p',{className:'lead'},'Identité, textes, publication et devis client — même Supabase que l’administration.')),
  E('div',{className:'page-actions'},
- E('a',{href:'./storefront/',target:'_blank',rel:'noopener',className:'btn'},'Ouvrir la vitrine'))),
+ E('a',{href:'/chr/index.html?preview=1',target:'_top',className:'btn'},'Prévisualisation interne'),
+ ...(current.published?[E('a',{href:'/chr/index.html',target:'_blank',rel:'noopener noreferrer',className:'btn'},'Voir la boutique publique')]:[]))),
  E('div',{className:'metric-grid'},
  ...[['Statut',current.published?'PUBLIÉE':'BROUILLON'],['Produits',products.length],['Médias',media.length]].map(([title,value])=>
  E('div',{className:'metric'},E('p',{},title),E('strong',{},value)))),

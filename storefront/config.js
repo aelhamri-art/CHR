@@ -4,4 +4,4 @@ window.CHR_CONFIG = {
   publishableKey: "sb_publishable_LraEI2HVyc3hb0vvaoaB_g_482aaQ7u"
 };
 
-window.CHR_SITE = {slug:'chr'}; // Public slug; publication controlled by storefront_settings.published.
+window.CHR_SITE = {slug:'bks-chr'}; // Public slug; publication controlled by storefront_settings.published.

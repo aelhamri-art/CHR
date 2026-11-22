@@ -5,7 +5,7 @@ import {euro,number,categoryName,imageUrl,clampQuantity,debounce} from './format
 
 const root=document.getElementById('app');
 const toastRoot=document.getElementById('toast-root');
-const SITE_SLUG=String(globalThis.CHR_SITE?.slug||'chr');
+const SITE_SLUG=String(globalThis.CHR_SITE?.slug||'bks-chr');
 const cart=new Cart(SITE_SLUG);
 const state={settings:null,items:[],user:null,profile:null,wishes:new Set(),addresses:[],quotes:[],
  search:'',sort:'name',category:'Toutes',drawer:null,productVariant:null,loading:false,cartRows:[],cartError:null,catalogCategories:[]};
@@ -138,7 +138,9 @@ function footer(){
  el('span',{},'CONÇU POUR DURER · PENSÉ POUR AGIR')));
 }
 function shell(content){
- const shellNode=el('div',{className:'site-shell'},header(),el('main',{id:'main',tabIndex:-1},content),footer(),bottomNav());
+ const previewLabel=(new URLSearchParams(location.search).get('preview')==='1' && state.settings && !state.settings.published)
+  ?el('div',{className:'chr-draft-preview',role:'status'},'APERÇU INTERNE · BKS CHR · BOUTIQUE NON PUBLIÉE') : null;
+ const shellNode=el('div',{className:'site-shell'},previewLabel,header(),el('main',{id:'main',tabIndex:-1},content),footer(),bottomNav());
  root.replaceChildren(shellNode);
  requestAnimationFrame(()=>{document.querySelectorAll('[data-reveal]').forEach(node=>observer?.observe(node));});
  document.title='CHR — '+(route()==='/'?'Équipements pour professionnels':route().split('/').filter(Boolean).pop()?.replaceAll('-',' ')||'Boutique');

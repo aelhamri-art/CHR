@@ -4,6 +4,18 @@ const KEY=String(cfg.publishableKey||'');
 const SESSION_KEY='chr-storefront-customer-session';
 let session=null;
 try{session=JSON.parse(sessionStorage.getItem(SESSION_KEY)||'null');}catch{}
+// An explicit owner-only preview uses the existing admin session in this tab.
+// No draft catalog becomes public: every read still passes Supabase Auth and RLS.
+// It never persists the staff token into the customer session key.
+const STAFF_PREVIEW=new URLSearchParams(location.search).get('preview')==='1';
+let staffPreviewSession=null;
+if(STAFF_PREVIEW){
+ try{
+  const candidate=JSON.parse(sessionStorage.getItem('chr-supabase-session-v1')||'null');
+  if(candidate?.access_token)staffPreviewSession=candidate;
+ }catch{}
+}
+const activeAccessToken=()=>staffPreviewSession?.access_token||session?.access_token||null;
 let refreshPromise=null;
 export class StoreError extends Error {constructor(message,status=0){super(message);this.name='StoreError';this.status=status;}}
 export function configured(){return /^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(BASE)&&KEY.length>15;}
@@ -18,11 +30,14 @@ function url(path,params){
 async function call(path,{method='GET',body,params,headers={},authorized=true,retry=true}={}){
  if(!configured())throw new StoreError('Configuration Supabase absente.');
  const h={apikey:KEY,Accept:'application/json',...headers};
- if(authorized&&session?.access_token)h.Authorization='Bearer '+session.access_token;
+ if(authorized&&activeAccessToken())h.Authorization='Bearer '+activeAccessToken();
  if(body!==undefined)h['Content-Type']='application/json';
  let response;
  try{response=await fetch(url(path,params),{method,headers:h,body:body!==undefined?JSON.stringify(body):undefined});}
  catch{throw new StoreError('Connexion indisponible. Vérifiez votre réseau.');}
+ if(response.status===401&&authorized&&staffPreviewSession){
+  throw new StoreError('Session de prévisualisation expirée. Reconnecte-toi à AXIUM OS.',401);
+ }
  if(response.status===401&&authorized&&retry&&session?.refresh_token){
   try{await refresh();return call(path,{method,body,params,headers,authorized,retry:false});}
   catch{setSession(null);throw new StoreError('Session expirée. Veuillez vous reconnecter.',401);}
@@ -48,7 +63,7 @@ export async function login(email,password){
 }
 export async function recover(email){return call('/auth/v1/recover',{method:'POST',body:{email},authorized:false});}
 export async function user(){
- if(!session?.access_token)return null;
+ if(!activeAccessToken())return null;
  try{return await call('/auth/v1/user');}
  catch(e){if(e.status===401)setSession(null);throw e;}
 }

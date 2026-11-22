@@ -341,3 +341,8 @@ img,svg{max-width:100%}a{color:inherit;text-decoration:none}h1,h2,h3,h4,p{margin
 .manifesto-section.manifesto-v2{position:relative;isolation:isolate;overflow:hidden;background:#26342a}
 .manifesto-v2 .manifesto-photo{position:absolute;inset:0;z-index:-2;width:100%;height:100%;object-fit:cover;object-position:center;filter:saturate(.72) contrast(1.08)}
 .manifesto-v2:before{content:'';position:absolute;inset:0;z-index:-1;background:linear-gradient(90deg,#15241fe8,#15251ed1 55%,#23352b96 100%),linear-gradient(0deg,#121c13a6,transparent)}
+
+
+.chr-draft-preview{position:relative;z-index:20;text-align:center;
+ padding:10px 16px;background:#261d16;color:#fff;
+ font-size:12px;font-weight:750;letter-spacing:.075em}

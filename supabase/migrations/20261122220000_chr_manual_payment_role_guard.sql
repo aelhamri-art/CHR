@@ -45,8 +45,7 @@ begin
  values(p_store_id,auth.uid(),'human','orders',p_order_id,'manual_payment_confirmed',
  jsonb_build_object('method',p_method,'reference',p_reference,'amount_minor',v_order.total_minor,'transaction_id',v_tx));
  return jsonb_build_object('status','paid','transaction_id',v_tx);
-end $function$
-
+end $function$;
 
 -- Ensure manual payment RPC is never accidentally granted to anonymous.
 revoke all on function public.confirm_manual_payment(uuid,uuid,text,text,text)

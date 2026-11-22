@@ -7,6 +7,13 @@ begin
  u:='11000000-0000-4000-8000-000000000001';
  insert into auth.users(id,email) values(u,'owner-flex-test@invalid.example');
  insert into public.stores(id,owner_user_id,slug,name) values(s,u,'chr','CHR FLEXIBLE TEST');
+ insert into auth.users(id,email) values
+ ('22000000-0000-4000-8000-000000000002','other-owner-test@invalid.example');
+ insert into public.stores(id,owner_user_id,slug,name) values
+ ('b2000000-0000-4000-8000-000000000002',
+  '22000000-0000-4000-8000-000000000002','other-flex-store','OTHER STORE');
+ insert into public.chr_business_policies(store_id,allow_negotiated_prices,max_price_reduction_bps)
+ values(s,true,4000);
  insert into public.customers(store_id,first_name,company,email)
  values(s,'Test','Société CHR','test@invalid.example') returning id into c;
  insert into public.locations(store_id,name) values(s,'Warehouse') returning id into l;
@@ -104,5 +111,33 @@ begin
  exception when check_violation then blocked:=true;end;
  if not blocked then raise exception 'Price policy bypass accepted';end if;
 end $business$;
+-- A second user from a different tenant must not be able to see or modify
+-- customer prices, quote revisions, policies, or internal agreements.
+select set_config('request.jwt.claim.sub','22000000-0000-4000-8000-000000000002',true);
+select set_config('request.jwt.claims',
+ '{"role":"authenticated","user_metadata":{"role":"superadmin","allow_discount":true}}',true);
+do $security$
+declare d jsonb:=current_setting('chr.test.flex')::jsonb;s uuid:=(d->>'store')::uuid;
+ cnt integer;denied boolean:=false;
+begin
+ select count(*) into cnt from public.chr_sales_quotes where store_id=s;
+ if cnt<>0 then raise exception 'Tenant B sees tenant A private quotes';end if;
+ select count(*) into cnt from public.chr_sales_quote_revisions where store_id=s;
+ if cnt<>0 then raise exception 'Tenant B sees quote revision history';end if;
+ select count(*) into cnt from public.chr_order_price_agreements where store_id=s;
+ if cnt<>0 then raise exception 'Tenant B sees negotiated price agreements';end if;
+ select count(*) into cnt from public.chr_business_policies where store_id=s;
+ if cnt<>0 then raise exception 'Tenant B sees private commercial policy';end if;
+ update public.chr_business_policies set max_price_reduction_bps=10000 where store_id=s;
+ get diagnostics cnt=row_count;
+ if cnt<>0 then raise exception 'Tenant B can modify tenant A discount cap';end if;
+ begin
+  perform public.chr_save_sales_quote(s,
+   jsonb_build_array(jsonb_build_object('variant_id',d->>'variant','quantity',1)),
+   null,null,null,'ATTACK','other@invalid.example',null,false,gen_random_uuid());
+ exception when insufficient_privilege then denied:=true;
+ end;
+ if not denied then raise exception 'Tenant B can invoke privileged quote writer on A';end if;
+end $security$;
 rollback;
 select 'PASS: flexible quotes, two immutable revisions, stock shortage visibility, negotiated order pricing, no duplicate orders' as result;

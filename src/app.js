@@ -1,5 +1,6 @@
 import * as api from './api.js';
 import {ordersPanel} from './orders.js';
+import {salesQuotesPage,businessPoliciesPage} from './sales.js';
 import {mediaPage} from './media.js';
 import {storefrontAdminPage} from './storefront-admin.js';
 import {importPage} from './import.js';
@@ -153,6 +154,17 @@ async function renderPage(){
  setMain(loading());
  try{
   if(route==='dashboard')return await renderDashboard();
+  if(route==='sales_quotes'){
+   const page=await salesQuotesPage(state.store.id,notice,renderPage);
+   if(state.route==='sales_quotes')setMain(page);
+   return;
+  }
+  if(route==='business_policies'){
+   const page=await businessPoliciesPage(state.store.id,
+     state.user?.id===state.store?.owner_user_id,notice,renderPage);
+   if(state.route==='business_policies')setMain(page);
+   return;
+  }
   if(route==='settings')return await renderSettings();
   if(route==='storefront'){
    const page=await storefrontAdminPage(state.store.id,renderPage,notice,state.store.slug);

@@ -158,3 +158,19 @@ export async function adminCatalogPage(storeId,table,{query='',cursor=null}={}){
 export async function adminDashboardCounts(storeId){
  return rpc('chr_admin_dashboard_counts',{p_store_id:storeId});
 }
+
+
+/**
+ * Store policy changes are owner-only via RLS.
+ * No browser may override the acting user, policy revision or tenant.
+ */
+export async function saveBusinessPolicy(storeId,policy){
+ const data=await request('/rest/v1/chr_business_policies',{
+  method:'POST',
+  params:{on_conflict:'store_id'},
+  headers:{Prefer:'resolution=merge-duplicates,return=representation'},
+  body:{...policy,store_id:storeId}
+ });
+ if(!data?.length)throw new ApiError('Configuration commerciale refusée : accès propriétaire requis.',403);
+ return data[0];
+}

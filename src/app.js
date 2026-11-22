@@ -1,5 +1,6 @@
 import * as api from './api.js';
 import {ordersPanel} from './orders.js';
+import {salesQuotesPage,businessPoliciesPage} from './sales.js';
 import {mediaPage} from './media.js';
 import {storefrontAdminPage} from './storefront-admin.js';
 import {importPage} from './import.js';
@@ -105,7 +106,7 @@ async function enter(){
  try {
   state.stores=await api.getStores(state.user.id);
   const stored=sessionStorage.getItem('chr-selected-store');
-  state.store=state.stores.find(s=>s.id===stored)||state.stores[0]||null;
+  state.store=state.stores.find(s=>s.id===stored)||state.stores.find(s=>s.slug==='chr33')||state.stores[0]||null;
   if(!state.store){onboard();return;}
   state.route=(location.hash.replace(/^#\/?/,'')||'dashboard');
   await renderShell();
@@ -141,7 +142,7 @@ async function renderShell(){
  E('div',{className:'workspace'},
  E('header',{className:'topbar'},btn('☰',()=>document.getElementById('sidebar')?.classList.toggle('open'),'menu-btn',{ariaLabel:'Afficher la navigation'}),
  E('div',{className:'store-switch'},E('label',{htmlFor:'select-store',className:'sr-only'},'Entreprise'),
- E('select',{id:'select-store',onchange:e=>{state.store=state.stores.find(s=>s.id===e.target.value);sessionStorage.setItem('chr-selected-store',state.store.id);navigate('dashboard');}},...state.stores.map(s=>E('option',{value:s.id,selected:s.id===state.store?.id},s.name)))),
+ E('select',{id:'select-store',onchange:e=>{state.store=state.stores.find(s=>s.id===e.target.value);sessionStorage.setItem('chr-selected-store',state.store.id);navigate('dashboard');}},...state.stores.map(s=>E('option',{value:s.id,selected:s.id===state.store?.id},s.name+' · '+s.slug)))),
  E('div',{className:'top-right'},E('span',{className:'chip'},'Supabase CHR'),E('span',{className:'avatar',title:state.user?.email||''},(state.user?.email||'A')[0].toUpperCase()),btn('Sortir',async()=>{await api.logout();state.user=null;state.store=null;authScreen();},'text-btn'))),
  E('div',{id:'notices',className:'notices'}),
  E('main',{id:'main-content',className:'main'},loading())));
@@ -153,6 +154,17 @@ async function renderPage(){
  setMain(loading());
  try{
   if(route==='dashboard')return await renderDashboard();
+  if(route==='sales_quotes'){
+   const page=await salesQuotesPage(state.store.id,notice,renderPage);
+   if(state.route==='sales_quotes')setMain(page);
+   return;
+  }
+  if(route==='business_policies'){
+   const page=await businessPoliciesPage(state.store.id,
+     state.user?.id===state.store?.owner_user_id,notice,renderPage);
+   if(state.route==='business_policies')setMain(page);
+   return;
+  }
   if(route==='settings')return await renderSettings();
   if(route==='storefront'){
    const page=await storefrontAdminPage(state.store.id,renderPage,notice,state.store.slug);
@@ -441,27 +453,73 @@ async function deleteRecord(key,row){
  }catch(e){notice(e.message,'error');}
 }
 async function inventoryAdjust(){
- const wrap=panel(E('h2',{},'Ajustement sécurisé du stock'),E('p',{className:'muted'},'Commande serveur atomique, traçable, avec clé anti-doublon.'));
- const [variants,locations]=await Promise.all([api.list('product_variants',state.store.id),api.list('locations',state.store.id)]);
- if(!variants.length||!locations.length){wrap.append(empty('Configuration nécessaire','Ajoute d’abord une variante et un entrepôt.'));return wrap;}
- const form=E('form',{className:'inline-form'});
- const variant=E('select',{name:'variant',required:true},...variants.map(v=>E('option',{value:v.id},v.sku||v.title)));
+ const storeId=state.store.id;
+ const wrap=panel(E('h2',{},'Mouvement de stock'),
+   E('p',{className:'muted'},'Ajustement traçable, atomique et indépendant de la disponibilité commerciale. Le stock physique n’est jamais rendu négatif.'));
+ const locations=await api.list('locations',storeId,{limit:100});
+ if(!locations.length){wrap.append(empty('Aucun entrepôt','Ajoute un emplacement avant de saisir un mouvement.'));return wrap;}
+ let selected=null,rev=0,timer=null;
+ const search=E('input',{type:'search',placeholder:'Rechercher un SKU parmi toutes les références',autocomplete:'off'});
+ const result=E('select',{},E('option',{value:''},'Sélectionne la référence trouvée'));
+ const hint=E('small',{className:'muted'},'Recherche côté serveur : aucune limite au premier millier de références.');
  const location=E('select',{name:'location',required:true},...locations.map(l=>E('option',{value:l.id},l.name)));
  const delta=E('input',{name:'delta',type:'number',step:1,placeholder:'± quantité',required:true});
  const reason=E('select',{name:'reason'},...[['receipt','Réception'],['correction','Correction'],['damage','Casse'],['return','Retour'],['manual','Manuel']].map(([v,l])=>E('option',{value:v},l)));
- const submit=E('button',{type:'submit',className:'btn accent'},'Appliquer');
- form.append(E('label',{},'Variante',variant),E('label',{},'Entrepôt',location),E('label',{},'Variation',delta),E('label',{},'Motif',reason),submit);
+ const summary=E('p',{className:'notice-inline'},'Sélectionne une référence et un entrepôt pour afficher son stock actuel.');
+ let results=[];
+ async function loadSku(){
+  const q=search.value.trim();
+  if(q.length<2){hint.textContent='Saisis au moins 2 caractères.';return;}
+  const id=++rev;
+  try{
+   const response=await api.adminCatalogPage(storeId,'product_variants',{query:q});
+   if(id!==rev)return;
+   results=response.rows||[];
+   result.replaceChildren(E('option',{value:''},'Choisir un produit'),...results.map(x=>
+    E('option',{value:x.id},(x.sku||x.title)+' • '+formatMoney(x.price_minor))));
+   hint.textContent=response.has_more?'50 premiers résultats ; précise le SKU.':results.length+' référence(s) trouvée(s).';
+  }catch(err){if(id===rev)hint.textContent=err.message;}
+ }
+ async function displayStock(){
+  if(!selected){summary.textContent='Choisis une référence pour continuer.';return;}
+  try{
+   const balances=await api.list('inventory_levels',storeId,{limit:2,
+    filters:{variant_id:'eq.'+selected.id,location_id:'eq.'+location.value}});
+   const l=balances[0];
+   summary.textContent=(l?
+    'Physique '+l.on_hand+' • Réservé '+l.reserved+' • Disponible '+(l.on_hand-l.reserved):
+    'Aucun stock enregistré pour cette référence / cet entrepôt.')
+    +' • La validation finale est recalculée dans PostgreSQL.';
+  }catch(err){summary.textContent=err.message;}
+ }
+ search.addEventListener('input',()=>{selected=null;clearTimeout(timer);timer=setTimeout(loadSku,240);});
+ result.addEventListener('change',()=>{selected=results.find(x=>x.id===result.value)||null;displayStock();});
+ location.addEventListener('change',displayStock);
+ const submit=E('button',{type:'submit',className:'btn accent'},'Enregistrer le mouvement');
+ const form=E('form',{className:'inline-form'});
+ form.append(E('label',{},'Référence',search),result,hint,
+   E('label',{},'Entrepôt',location),E('label',{},'Variation',delta),
+   E('label',{},'Motif',reason),submit);
  form.addEventListener('submit',async e=>{
-  e.preventDefault();submit.disabled=true;
-  try {
+  e.preventDefault();
+  if(!selected){notice('Choisis une référence de stock.','error');return;}
+  submit.disabled=true;
+  try{
    const amount=parseInteger(delta.value,{min:-100000000,max:100000000});
-   if(amount===0)throw new Error('Variation nulle interdite.');
-   const result=await api.rpc('adjust_inventory',{p_store_id:state.store.id,p_variant_id:variant.value,p_location_id:location.value,p_delta:amount,p_reason:reason.value,p_idempotency_key:crypto.randomUUID()});
-   notice('Stock enregistré : '+result.on_hand+' unités physiques.','success');await renderPage();
+   if(amount===0)throw Error('Variation nulle interdite.');
+   const response=await api.rpc('adjust_inventory',{
+    p_store_id:storeId,p_variant_id:selected.id,p_location_id:location.value,
+    p_delta:amount,p_reason:reason.value,p_idempotency_key:crypto.randomUUID()
+   });
+   notice('Mouvement confirmé : '+response.on_hand+' unité(s) physiques.','success');
+   await renderPage();
   }catch(err){notice(err.message,'error');}
   finally{submit.disabled=false;}
  });
- wrap.append(form);return wrap;
+ wrap.append(form,summary,
+  E('p',{className:'muted'},
+   'Stock insuffisant ? Prépare une proposition en devis avec approvisionnement différé, sans falsifier le stock physique.'));
+ return wrap;
 }
 async function shippingTester(){
  const wrap=panel(E('h2',{},'Tester les tarifs configurés'),E('p',{className:'muted'},'Le calcul interroge les règles enregistrées en base. Les tarifs transporteurs connectés nécessitent une API externe.'));

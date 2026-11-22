@@ -1,6 +1,6 @@
 /* Workflows commerciaux : aucun prix, stock ou état de paiement modifié côté navigateur. */
 import * as api from './api.js';
-import {parseInteger,formatMoney} from './rules.js';
+import {parseInteger,parseMoney,formatMoney} from './rules.js';
 function el(tag,props={},...children){
  const node=document.createElement(tag);
  for(const [key,value] of Object.entries(props)){
@@ -23,12 +23,14 @@ function actionForm(title,description,content,onSubmit){
  return el('section',{className:'workflow-card'},el('h3',{},title),el('p',{className:'muted'},description),form);
 }
 export async function ordersPanel(storeId,onUpdated,notify){
- const [customers,locations,profiles,variants,orders,taxes]=await Promise.all([
+ const [customers,locations,profiles,orders,taxes,firstCatalog,policies]=await Promise.all([
   api.list('customers',storeId),api.list('locations',storeId),api.list('shipping_profiles',storeId),
-  api.list('product_variants',storeId),api.list('orders',storeId),api.list('tax_rules',storeId)
+  api.list('orders',storeId),api.list('tax_rules',storeId),
+  api.adminCatalogPage(storeId,'product_variants'),api.list('chr_business_policies',storeId,{limit:1})
  ]);
+ const priceNegotiationEnabled=policies[0]?.allow_negotiated_prices??true;
  const outer=el('div',{className:'workflow-zone'},el('h2',{},'Opérations commerciales réelles'));
- const isReady=customers.length>0&&locations.length>0&&profiles.length>0&&variants.length>0&&taxes.length>0;
+ const isReady=customers.length>0&&locations.length>0&&profiles.length>0&&(firstCatalog.rows||[]).length>0&&taxes.length>0;
  if(!isReady)outer.append(el('p',{className:'notice-inline'},'Avant de créer une commande, renseigne un client, un entrepôt, une variante avec du stock, un profil de livraison et une règle fiscale. Aucun prix ou taxe ne sera inventé.'));
  if(isReady){
   const customer=select(customers,'company');
@@ -39,10 +41,51 @@ export async function ordersPanel(storeId,onUpdated,notify){
   const lines=el('div',{className:'workflow-lines'});
   function addLine(){
    const row=el('div',{className:'workflow-line'});
-   const chosen=select(variants,'sku');
+   const search=el('input',{type:'search',placeholder:'Rechercher SKU / désignation',autocomplete:'off'});
+   const chosen=el('select',{},el('option',{value:''},'Sélectionne une référence'));
    const quantity=el('input',{type:'number',min:'1',max:'100000',step:'1',value:'1',required:true});
+   const unitPrice=el('input',{type:'text',placeholder:'Prix HT négocié (€)',disabled:!priceNegotiationEnabled});
+   const priceReason=el('input',{type:'text',placeholder:'Motif du prix personnalisé',disabled:!priceNegotiationEnabled});
+   const hint=el('small',{className:'muted'},'Recherche dans l’ensemble des références.');
+   let matches=[],selected=null,requestId=0,timer;
+   async function searchCatalog(){
+     const query=search.value.trim();
+     if(query.length<2){hint.textContent='Saisis au moins 2 caractères.';return;}
+     const current=++requestId;
+     try{
+       const page=await api.adminCatalogPage(storeId,'product_variants',{query});
+       if(current!==requestId)return;
+       matches=page.rows||[];
+       chosen.replaceChildren(el('option',{value:''},'Choisir une référence'),
+         ...matches.map(v=>el('option',{value:v.id},(v.sku||v.title)+' — '+formatMoney(v.price_minor))));
+       hint.textContent=page.has_more?'Précise la référence pour réduire les résultats.':matches.length+' résultat(s)';
+     }catch(e){if(current===requestId)hint.textContent=e.message;}
+   }
+   search.addEventListener('input',()=>{
+     selected=null;clearTimeout(timer);timer=setTimeout(searchCatalog,260);
+   });
+   chosen.addEventListener('change',()=>{
+     selected=matches.find(v=>v.id===chosen.value)||null;
+     if(selected){search.value=selected.sku||selected.title;unitPrice.value=String(selected.price_minor/100);hint.textContent='Prix catalogue : '+formatMoney(selected.price_minor);}
+   });
    const remove=el('button',{type:'button',className:'btn',onClick:()=>row.remove()},'Retirer');
-   row.append(chosen,quantity,remove);
+   row.append(field('Rechercher une référence',search),chosen,hint,
+    field('Quantité',quantity),
+    ...(priceNegotiationEnabled?[field('Prix HT à appliquer (€)',unitPrice),field('Justification si différent du tarif catalogue',priceReason)]:[]),
+    remove);
+   row.getOrderLine=()=>{
+     if(!selected)throw Error('Sélectionne une référence pour chaque ligne.');
+     const line={variant_id:selected.id,quantity:parseInteger(quantity.value,{min:1,max:100000})};
+     if(priceNegotiationEnabled){
+       const agreed=parseMoney(unitPrice.value);
+       if(agreed!==Number(selected.price_minor)){
+         line.unit_price_minor=agreed;
+         line.price_reason=priceReason.value.trim();
+         if(line.price_reason.length<8)throw Error('Motif de négociation obligatoire : 8 caractères minimum.');
+       }
+     }
+     return line;
+   };
    lines.append(row);
   }
   addLine();
@@ -55,10 +98,7 @@ export async function ordersPanel(storeId,onUpdated,notify){
    event.preventDefault();
    const submit=event.currentTarget.querySelector('[type=submit]');submit.disabled=true;
    try{
-    const entries=[...lines.querySelectorAll('.workflow-line')].map(row=>({
-     variant_id:row.querySelector('select').value,
-     quantity:parseInteger(row.querySelector('input').value,{min:1,max:100000})
-    }));
+    const entries=[...lines.querySelectorAll('.workflow-line')].map(row=>row.getOrderLine());
     if(!entries.length)throw new Error('Ajoute au moins une ligne.');
     const result=await api.rpc('create_order',{
      p_store_id:storeId,p_customer_id:customer.value,p_location_id:location.value,

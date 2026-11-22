@@ -16,6 +16,7 @@ const E=(tag,attributes={},...children)=>{
   else if(k==='onSubmit')n.addEventListener('submit',v);
   else if(k==='value')n.value=v;
   else if(k==='checked')n.checked=!!v;
+  else if(k==='selected')n.selected=!!v;
   else if(k==='disabled')n.disabled=!!v;
   else if(k==='required')n.required=!!v;
   else if(k==='style')n.style.cssText=v;

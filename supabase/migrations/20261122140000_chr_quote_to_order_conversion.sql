@@ -51,8 +51,8 @@ begin
  select * into q from public.chr_sales_quotes
  where store_id=p_store_id and id=p_quote_id for update;
  if not found then raise exception 'Quote not found' using errcode='23503';end if;
- select order_id,quote_revision into existing from public.chr_quote_conversions
-  where store_id=p_store_id and quote_id=p_quote_id;
+ select c.order_id,c.quote_revision into existing from public.chr_quote_conversions c
+  where c.store_id=p_store_id and c.quote_id=p_quote_id;
  if found then
   return jsonb_build_object('status','already_converted','quote_id',p_quote_id,'order_id',existing.order_id,'quote_revision',existing.quote_revision);
  end if;

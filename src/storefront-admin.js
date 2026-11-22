@@ -93,7 +93,7 @@ export async function storefrontAdminPage(storeId,onSaved,notify,storeSlug='chr'
  E('div',{className:'page-header'},E('div',{},E('div',{className:'eyebrow'},'ADMINISTRATION / SITE CLIENT'),
  E('h1',{},'Boutique CHR'),E('p',{className:'lead'},'Identité, textes, publication et devis client — même Supabase que l’administration.')),
  E('div',{className:'page-actions'},
- E('a',{href:'/chr/index.html?preview=1',target:'_blank',rel:'noopener noreferrer',className:'btn'},'Prévisualisation interne'),
+ E('a',{href:'/chr/index.html?preview=1',target:'_top',className:'btn'},'Prévisualisation interne'),
  ...(current.published?[E('a',{href:'/chr/index.html',target:'_blank',rel:'noopener noreferrer',className:'btn'},'Voir la boutique publique')]:[]))),
  E('div',{className:'metric-grid'},
  ...[['Statut',current.published?'PUBLIÉE':'BROUILLON'],['Produits',products.length],['Médias',media.length]].map(([title,value])=>

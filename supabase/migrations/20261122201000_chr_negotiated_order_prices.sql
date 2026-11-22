@@ -74,7 +74,28 @@ begin
   v_reason:=nullif(btrim(coalesce(v_item->>'price_reason','')),'');
   if v_item ? 'unit_price_minor' and (v_item->>'unit_price_minor') is distinct from v_base_unit::text then
    if jsonb_typeof(v_item->'unit_price_minor') not in ('number','string')
-    or coalesce(v_item->>'unit_price_minor','') !~ '^[0-9]{1,13} into v_level from public.inventory_levels
+    or coalesce(v_item->>'unit_price_minor','') !~ '^[0-9]{1,11}$' then
+    raise exception 'Agreed unit price must be a nonnegative integer in minor units' using errcode='22023';
+   end if;
+   v_agreed_unit:=(v_item->>'unit_price_minor')::bigint;
+   select coalesce((select p.allow_negotiated_prices from public.chr_business_policies p where p.store_id=p_store_id),true),
+          coalesce((select p.max_price_reduction_bps from public.chr_business_policies p where p.store_id=p_store_id),4000)
+    into v_price_override_enabled,v_limit_bps;
+   if not v_price_override_enabled then
+    raise exception 'Negotiated prices disabled for this store' using errcode='23514';
+   end if;
+   if v_reason is null or length(v_reason) not between 8 and 500 then
+    raise exception 'Explicit price justification (8 to 500 characters) required' using errcode='22023';
+   end if;
+   if v_agreed_unit < v_base_unit and v_base_unit>0 and
+      (v_base_unit-v_agreed_unit)::numeric*10000 > v_base_unit::numeric*v_limit_bps then
+    raise exception 'Negotiated price exceeds the authorized reduction' using errcode='23514';
+   end if;
+   v_agreements:=v_agreements||jsonb_build_array(jsonb_build_object(
+    'variant_id',v_variant_id,'base_unit_minor',v_base_unit,
+    'agreed_unit_minor',v_agreed_unit,'quantity',v_qty,'reason',v_reason));
+  end if;
+  select id,on_hand,reserved into v_level from public.inventory_levels
   where store_id=p_store_id and variant_id=v_variant_id and location_id=p_location_id
   for update;
   if not found or (v_level.on_hand-v_level.reserved)<v_qty then
@@ -121,8 +142,6 @@ begin
    (v_item->>'unit_price_minor')::bigint,
    case when (v_item->>'taxable')::boolean then round(((v_item->>'unit_price_minor')::numeric*(v_item->>'quantity')::int)*v_tax_rate/10000)::bigint else 0 end,0);
  end loop;
- -- Keep the original list price and commercial justification in an immutable
- -- audit record, separate from the contractual unit price on the order line.
  for v_agreement in select value from jsonb_array_elements(v_agreements) loop
   insert into public.chr_order_price_agreements(
    store_id,order_id,variant_id,base_unit_minor,agreed_unit_minor,
@@ -136,80 +155,6 @@ begin
  insert into public.audit_events(store_id,actor_id,actor_type,entity_type,entity_id,action,after_state)
  values(p_store_id,auth.uid(),'human','orders',v_id,'create',
   jsonb_build_object('total_minor',v_total,'shipping_minor',v_shipping,'tax_minor',v_tax,'lines',jsonb_array_length(v_order_lines),'negotiated_lines',jsonb_array_length(v_agreements)));
- return jsonb_build_object('status','created','order_id',v_id,'order_number',v_no,'total_minor',v_total,'currency','EUR');
-end $function$
- then
-    raise exception 'Agreed unit price must be a nonnegative integer in minor units' using errcode='22023';
-   end if;
-   v_agreed_unit:=(v_item->>'unit_price_minor')::bigint;
-   select coalesce((select p.allow_negotiated_prices from public.chr_business_policies p where p.store_id=p_store_id),true),
-          coalesce((select p.max_price_reduction_bps from public.chr_business_policies p where p.store_id=p_store_id),4000)
-    into v_price_override_enabled,v_limit_bps;
-   if not v_price_override_enabled then
-    raise exception 'Negotiated prices disabled for this store' using errcode='23514';
-   end if;
-   if v_reason is null or length(v_reason) not between 8 and 500 then
-    raise exception 'Explicit price justification (8 to 500 characters) required' using errcode='22023';
-   end if;
-   if v_agreed_unit < v_base_unit and v_base_unit>0 and
-      (v_base_unit-v_agreed_unit)::numeric*10000 > v_base_unit::numeric*v_limit_bps then
-    raise exception 'Negotiated price exceeds the authorized reduction' using errcode='23514';
-   end if;
-   v_agreements:=v_agreements||jsonb_build_array(jsonb_build_object(
-    'variant_id',v_variant_id,'base_unit_minor',v_base_unit,
-    'agreed_unit_minor',v_agreed_unit,'quantity',v_qty,'reason',v_reason));
-  end if;
-  select id,on_hand,reserved into v_level from public.inventory_levels
-  where store_id=p_store_id and variant_id=v_variant_id and location_id=p_location_id
-  for update;
-  if not found or (v_level.on_hand-v_level.reserved)<v_qty then
-   raise exception 'Insufficient available inventory for variant %',v_variant_id using errcode='23514';
-  end if;
-  update public.inventory_levels set reserved=reserved+v_qty,updated_at=now() where id=v_level.id;
-  v_subtotal:=v_subtotal+(v_variant.price_minor*v_qty);
-  v_weight:=v_weight+(v_variant.weight_grams::bigint*v_qty);
-  v_order_lines:=v_order_lines||jsonb_build_array(jsonb_build_object(
-   'variant_id',v_variant_id,'product_title',v_variant.product_title,'variant_title',v_variant.title,
-   'sku',v_variant.sku,'quantity',v_qty,'unit_price_minor',v_variant.price_minor,'taxable',v_variant.taxable
-  ));
- end loop;
- if v_weight>2147483647 then raise exception 'Excessive shipping weight' using errcode='22023';end if;
- select r.amount_minor,r.rate_name into v_shipping,v_ship_name from
-  public.eligible_shipping_rates(p_store_id,p_shipping_profile_id,v_country,p_postal,v_weight::int,v_subtotal) r limit 1;
- if not found then raise exception 'No eligible shipping rate' using errcode='23514';end if;
- select rate_basis_points,tax_shipping into v_tax_rate,v_tax_shipping
- from public.tax_rules where store_id=p_store_id and country=v_country and active=true
- order by rate_basis_points desc limit 1;
- if not found then raise exception 'Country tax rule must be configured before placing orders' using errcode='23514'; end if;
- select coalesce(sum(case when (t.v_line_json->>'taxable')::boolean
- then round((t.v_line_json->>'unit_price_minor')::numeric*(t.v_line_json->>'quantity')::int*v_tax_rate/10000)::bigint
- else 0 end),0)
- into v_tax from jsonb_array_elements(v_order_lines) as t(v_line_json);
- if v_tax_shipping then
-  v_tax:=v_tax+round(v_shipping::numeric*v_tax_rate/10000)::bigint;
- end if;
- v_total:=v_subtotal+v_shipping+v_tax;
- insert into public.order_counters(store_id,last_order_no) values(p_store_id,1000)
- on conflict (store_id) do update set last_order_no=public.order_counters.last_order_no+1
- returning last_order_no into v_no;
- insert into public.orders(store_id,order_number,customer_id,currency,status,payment_status,fulfillment_status,
- subtotal_minor,shipping_minor,tax_minor,total_minor,shipping_address,placed_at)
- values(p_store_id,v_no::text,p_customer_id,'EUR','open','pending','unfulfilled',
- v_subtotal,v_shipping,v_tax,v_total,jsonb_build_object('country',v_country,'postal',p_postal,
- 'shipping_profile_id',p_shipping_profile_id,'shipping_rate_name',v_ship_name,'shipping_location_id',p_location_id),now())
- returning id into v_id;
- for v_item in select value from jsonb_array_elements(v_order_lines) loop
-  insert into public.order_lines(store_id,order_id,variant_id,product_title,variant_title,sku,
-    quantity,unit_price_minor,tax_minor,discount_minor)
-  values(p_store_id,v_id,(v_item->>'variant_id')::uuid,v_item->>'product_title',
-   v_item->>'variant_title',v_item->>'sku',(v_item->>'quantity')::int,
-   (v_item->>'unit_price_minor')::bigint,
-   case when (v_item->>'taxable')::boolean then round(((v_item->>'unit_price_minor')::numeric*(v_item->>'quantity')::int)*v_tax_rate/10000)::bigint else 0 end,0);
- end loop;
- insert into public.order_requests(store_id,idempotency_key,order_id)values(p_store_id,p_idempotency_key,v_id);
- insert into public.audit_events(store_id,actor_id,actor_type,entity_type,entity_id,action,after_state)
- values(p_store_id,auth.uid(),'human','orders',v_id,'create',
-  jsonb_build_object('total_minor',v_total,'shipping_minor',v_shipping,'tax_minor',v_tax,'lines',jsonb_array_length(v_order_lines)));
  return jsonb_build_object('status','created','order_id',v_id,'order_number',v_no,'total_minor',v_total,'currency','EUR');
 end $function$
 ;

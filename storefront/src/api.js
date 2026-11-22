@@ -7,7 +7,7 @@ try{session=JSON.parse(sessionStorage.getItem(SESSION_KEY)||'null');}catch{}
 // An explicit owner-only preview uses the existing admin session in this tab.
 // No draft catalog becomes public: every read still passes Supabase Auth and RLS.
 // It never persists the staff token into the customer session key.
-const STAFF_PREVIEW=new URLSearchParams(location.search).get('preview')==='1';
+const STAFF_PREVIEW=typeof location!=='undefined' && new URLSearchParams(location.search).get('preview')==='1';
 let staffPreviewSession=null;
 if(STAFF_PREVIEW){
  try{

@@ -210,16 +210,12 @@ export async function businessPoliciesPage(storeId,isOwner,notify,onUpdated){
  const max=E('input',{type:'number',min:0,max:100,step:1,value:(existing.max_price_reduction_bps??4000)/100,disabled:!isOwner});
  const quoteLines=E('input',{type:'number',min:1,max:500,step:1,value:existing.quote_line_limit??250,disabled:!isOwner});
  const backorder=E('input',{type:'checkbox',checked:existing.allow_backorder_quotes??true,disabled:!isOwner});
- const pickup=E('input',{type:'checkbox',checked:existing.allow_pickup_quotes??true,disabled:!isOwner});
  form.append(
   E('h2',{},'Liberté commerciale encadrée'),
   label('Autoriser les prix négociés avec justification',negotiate),
   label('Réduction maximale autorisée par collaborateur (%)',max),
   label('Nombre maximal de lignes par devis interne',quoteLines),
   label('Autoriser les devis avec articles à approvisionner',backorder),
-  label('Autoriser la préparation future de devis pour retrait',pickup),
-  E('p',{className:'notice-inline'},
-   'La possibilité de retrait est préparée ici mais le moteur de livraison/retrait n’est pas encore activé. Aucun bouton opérationnel ne sera affiché avant son implémentation.'),
   E('p',{className:'muted'},'Seul le propriétaire peut changer ces paramètres. Les prix finaux et leurs motifs sont contrôlés et historisés côté serveur.'),
   E('button',{type:'submit',className:'btn accent',disabled:!isOwner},'Enregistrer la politique'));
  form.addEventListener('submit',async ev=>{
@@ -230,8 +226,7 @@ export async function businessPoliciesPage(storeId,isOwner,notify,onUpdated){
     allow_negotiated_prices:negotiate.checked,
     max_price_reduction_bps:parseInteger(max.value,{min:0,max:100})*100,
     quote_line_limit:parseInteger(quoteLines.value,{min:1,max:500}),
-    allow_backorder_quotes:backorder.checked,
-    allow_pickup_quotes:pickup.checked
+    allow_backorder_quotes:backorder.checked
    };
    await api.saveBusinessPolicy(storeId,payload);
    notify('Règles commerciales enregistrées et contrôlées côté serveur.','success');

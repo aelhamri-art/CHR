@@ -47,7 +47,7 @@ export async function storefrontAdminPage(storeId,onSaved,notify,storeSlug='chr'
  const form=E('form',{className:'storefront-config'});
  const save=E('button',{type:'submit',className:'btn accent'},current.published?'Enregistrer et actualiser':'Enregistrer le brouillon');
  const legalStatus=E('div',{className:'notice-inline'},
- 'Publication bloquée sans email officiel, documents juridiques présents (minimum technique : 80 caractères chacun, soumis à revue), et produit actif photographié.');
+ 'Publication bloquée sans email officiel, documents juridiques présents (minimum technique : 100 caractères chacun, soumis à revue), et produit actif photographié.');
  const sections=[
   section('Identité publique','Ces informations apparaissent sur le site client. Ne pas utiliser les éléments graphiques d’AXIUM Commerce OS comme marque publique sans accord.',
   [field('Adresse courte',f.slug),field('Marque affichée',f.brand),field('Sur-titre',f.eyebrow),field('Promesse principale',f.headline),field('Argumentaire',f.subline),field('E-mail de contact',f.contact),field('Image hero (chemin de fichier approuvé)',f.image)]),

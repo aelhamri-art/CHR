@@ -105,3 +105,18 @@ input:focus,select:focus,textarea:focus{border-color:#d28056;box-shadow:0 0 0 3p
 .workflow-line{display:grid;gap:10px;padding:15px;border:1px solid var(--line,#ddd);border-radius:12px;margin:10px 0}
 .workflow-line input,.workflow-line select{max-width:100%;min-width:0}
 @media(max-width:640px){.os-confirm-dialog{padding:18px}.workflow-line{grid-template-columns:minmax(0,1fr)}}
+
+
+/* AXIUM OS: release controls — neutral status, visibly actionable without launch bypass */
+.release-center{display:grid;gap:18px}
+.release-items{display:grid;gap:10px}
+.release-item{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;
+  padding:15px;border:1px solid var(--line,#ddd);border-radius:12px}
+.release-item-content{display:grid;gap:6px;min-width:0}
+.release-item .release-pill{display:inline-block;font-size:12px;line-height:1.3;
+  max-width:max-content;background:var(--surface-muted,#f4f4f4);border:1px solid var(--line,#ddd);
+  border-radius:20px;padding:3px 9px}
+.release-item .release-pill.danger{border-color:#c77c77}
+.release-item .release-pill.warning{border-color:#bfa267}
+.release-item .release-pill.success{border-color:#87a78b}
+@media(max-width:680px){.release-item{flex-direction:column;align-items:stretch}}

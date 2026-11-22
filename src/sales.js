@@ -132,9 +132,12 @@ export async function salesQuotesPage(storeId,notify,onUpdated){
     E('td',{},summary?summary+' unité(s) à commander':'—'),
     E('td',{},statusActions)));
   }
-  list.append(E('div',{className:'table-wrap'},E('table',{className:'data-table'},
-   E('thead',{},E('tr',{},...['Modifié','Client','Version','Statut','Estimation HT','À approvisionner','Actions'].map(s=>E('th',{},s)))),tbody)),
-   E('p',{className:'muted'},'100 derniers devis. Le suivi et les modifications sont conservés par révision.')));
+   const header=E('thead',{},E('tr',{},
+    ...['Modifié','Client','Version','Statut','Estimation HT','À approvisionner','Actions']
+      .map(name=>E('th',{},name))));
+   const table=E('table',{className:'data-table'},header,tbody);
+   list.append(E('div',{className:'table-wrap'},table),
+    E('p',{className:'muted'},'100 derniers devis. Le suivi et les modifications sont conservés par révision.'));
  }
 
  async function transition(q,next){

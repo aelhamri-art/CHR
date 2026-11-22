@@ -8,10 +8,13 @@ declare
  customer uuid;location uuid;profile uuid;zone uuid;product uuid;variant uuid;
 begin
  insert into auth.users(id,email) values(owner,'shipment-owner@invalid.example'),
-  ('22000000-0000-4000-8000-000000000002','shipment-attacker@invalid.example');
+  ('22000000-0000-4000-8000-000000000002','shipment-attacker@invalid.example'),
+  ('33000000-0000-4000-8000-000000000003','shipment-manager@invalid.example');
  insert into public.stores(id,owner_user_id,slug,name)
  values(s,owner,'chr','Shipment CI CHR');
- insert into public.customers(store_id,first_name,company,email)
+ insert into public.store_members(store_id,user_id,role,status)
+ values(s,'33000000-0000-4000-8000-000000000003','manager','active');
+  insert into public.customers(store_id,first_name,company,email)
  values(s,'Delivery','CHR CI','shipment@invalid.example') returning id into customer;
  insert into public.locations(store_id,name) values(s,'Main warehouse') returning id into location;
  insert into public.shipping_profiles(store_id,name) values(s,'Delivery') returning id into profile;
@@ -99,6 +102,14 @@ begin
  if (ready->>'checks_blocked')::integer<1
  or jsonb_array_length(ready->'checks')<10 then
   raise exception 'Release center silently passed incomplete shop';end if;
+  -- A manager can handle business orders, but cannot certify bank receipt by default.
+ perform set_config('request.jwt.claim.sub','33000000-0000-4000-8000-000000000003',true);
+ blocked:=false;
+ begin
+  perform public.confirm_manual_payment(s,v_order_id,
+   'bank_transfer','BANK-MANAGER-ATTEMPT','PAIEMENT RECU');
+ exception when insufficient_privilege then blocked:=true;end;
+ if not blocked then raise exception 'Manager bypassed financial approval policy';end if;
   perform set_config('request.jwt.claim.sub','22000000-0000-4000-8000-000000000002',true);
  select count(*) into n from public.chr_shipments where store_id=s;
  if n<>0 then raise exception 'Other tenant can read shipments';end if;

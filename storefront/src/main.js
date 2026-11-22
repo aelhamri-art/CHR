@@ -5,7 +5,7 @@ import {euro,number,categoryName,imageUrl,clampQuantity,debounce} from './format
 
 const root=document.getElementById('app');
 const toastRoot=document.getElementById('toast-root');
-const SITE_SLUG=String(globalThis.CHR_SITE?.slug||'chr');
+const SITE_SLUG=String(globalThis.CHR_SITE?.slug||'bks-chr');
 const cart=new Cart(SITE_SLUG);
 const state={settings:null,items:[],user:null,profile:null,wishes:new Set(),addresses:[],quotes:[],
  search:'',sort:'name',category:'Toutes',drawer:null,productVariant:null,loading:false,cartRows:[],cartError:null,catalogCategories:[]};

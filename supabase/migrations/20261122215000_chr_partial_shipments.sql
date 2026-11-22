@@ -167,3 +167,36 @@ revoke all on function public.chr_dispatch_order_lines(uuid,uuid,jsonb,text,text
  from public,anon,authenticated;
 grant execute on function public.chr_dispatch_order_lines(uuid,uuid,jsonb,text,text,uuid)
  to authenticated;
+
+
+-- UI/read-only capability: remaining quantities for one order, queried on demand
+-- rather than fetching all historical shipment rows into the browser.
+create or replace function public.chr_order_dispatch_progress(
+ p_store_id uuid,p_order_id uuid
+) returns jsonb language plpgsql stable security invoker set search_path=''
+as $read$
+declare v_result jsonb;
+begin
+ if auth.uid() is null or not app_private.can_read_store(p_store_id) then
+  raise exception 'Access denied' using errcode='42501';
+ end if;
+ select coalesce(jsonb_agg(jsonb_build_object(
+  'order_line_id',ol.id,'variant_id',ol.variant_id,
+  'sku',ol.sku,'product_title',ol.product_title,'variant_title',ol.variant_title,
+  'ordered',ol.quantity,'dispatched',coalesce(sent.qty,0),
+  'remaining',greatest(ol.quantity-coalesce(sent.qty,0),0))
+  order by ol.product_title,ol.id),'[]'::jsonb)
+ into v_result
+ from public.order_lines ol
+ left join lateral (
+  select sum(sl.quantity)::integer qty
+   from public.chr_shipment_lines sl
+   join public.chr_shipments sh on sh.store_id=sl.store_id and sh.id=sl.shipment_id
+   where sl.store_id=ol.store_id and sl.order_line_id=ol.id
+    and sh.order_id=ol.order_id
+ ) sent on true
+ where ol.store_id=p_store_id and ol.order_id=p_order_id;
+ return v_result;
+end $read$;
+revoke all on function public.chr_order_dispatch_progress(uuid,uuid) from public,anon,authenticated;
+grant execute on function public.chr_order_dispatch_progress(uuid,uuid) to authenticated;

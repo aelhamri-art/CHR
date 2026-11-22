@@ -30,15 +30,18 @@ declare
  v_reason text;
  v_limit_bps integer;
  v_price_override_enabled boolean;
+ v_order_line_limit integer;
  v_country text:=upper(coalesce(p_country,''));
 begin
  if auth.uid() is null or not app_private.can_manage_store(p_store_id) then
   raise exception 'Access denied' using errcode='42501';
  end if;
+ select coalesce((select p.order_line_limit from public.chr_business_policies p where p.store_id=p_store_id),250)
+ into v_order_line_limit;
  if p_idempotency_key is null or p_store_id is null or p_customer_id is null or p_location_id is null
   or p_shipping_profile_id is null or p_postal is null or p_country is null
   or v_country !~ '^[A-Z]{2}$'
-  or p_lines is null or jsonb_typeof(p_lines)<>'array' or jsonb_array_length(p_lines) not between 1 and 100 then
+  or p_lines is null or jsonb_typeof(p_lines)<>'array' or jsonb_array_length(p_lines) not between 1 and v_order_line_limit then
   raise exception 'Invalid order request' using errcode='22023';
  end if;
  if not exists (select 1 from public.customers where store_id=p_store_id and id=p_customer_id)

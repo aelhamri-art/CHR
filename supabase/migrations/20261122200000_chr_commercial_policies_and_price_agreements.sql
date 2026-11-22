@@ -7,6 +7,8 @@ create table if not exists public.chr_business_policies (
    check(max_price_reduction_bps between 0 and 10000),
  quote_line_limit integer not null default 250
    check(quote_line_limit between 1 and 500),
+ order_line_limit integer not null default 250
+   check(order_line_limit between 1 and 500),
  allow_backorder_quotes boolean not null default true,
  allow_pickup_quotes boolean not null default true,
  updated_at timestamptz not null default now(),

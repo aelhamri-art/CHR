@@ -4,6 +4,7 @@ on:
     paths:
       - 'supabase/migrations/**'
       - 'supabase/tests/010_*'
+      - 'supabase/tests/011_*'
       - '.github/workflows/chr-business-flex-ci.yml'
   workflow_dispatch:
 permissions:
@@ -53,6 +54,11 @@ jobs:
         run: |
           set -o pipefail
           psql -X -v ON_ERROR_STOP=1 -f supabase/tests/010_chr_flexible_business_quotes_and_price_rollback.sql 2>&1 | tee artifacts/business-flex-test.log
+      - name: Verify accepted quote to order conversion and exactly-once execution
+        shell: bash
+        run: |
+          set -o pipefail
+          psql -X -v ON_ERROR_STOP=1 -f supabase/tests/011_chr_quote_to_order_rollback.sql 2>&1 | tee artifacts/quote-to-order.log
       - name: Upload audit evidence
         if: always()
         uses: actions/upload-artifact@v4

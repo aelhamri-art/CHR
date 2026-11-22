@@ -43,7 +43,7 @@ declare d jsonb:=current_setting('chr.test.ship')::jsonb;
  order_result jsonb;v_order_id uuid;line_id uuid;
  key uuid:=gen_random_uuid(); r jsonb;
  n int; physical int; reserved_count int;
- blocked boolean;
+ blocked boolean;ready jsonb;
 begin
  order_result:=public.create_order(s,customer,location,profile,'ZZ','00000',
   jsonb_build_array(jsonb_build_object('variant_id',variant,'quantity',3)),gen_random_uuid());
@@ -95,9 +95,17 @@ begin
   where store_id=s and id=v_order_id and status='completed' and fulfillment_status='fulfilled';
  if n<>1 then raise exception 'Order status not complete';end if;
 
- perform set_config('request.jwt.claim.sub','22000000-0000-4000-8000-000000000002',true);
+ ready:=public.chr_release_readiness(s);
+ if (ready->>'checks_blocked')::integer<1
+ or jsonb_array_length(ready->'checks')<10 then
+  raise exception 'Release center silently passed incomplete shop';end if;
+  perform set_config('request.jwt.claim.sub','22000000-0000-4000-8000-000000000002',true);
  select count(*) into n from public.chr_shipments where store_id=s;
  if n<>0 then raise exception 'Other tenant can read shipments';end if;
+ blocked:=false;
+ begin perform public.chr_release_readiness(s);
+ exception when insufficient_privilege then blocked:=true;end;
+ if not blocked then raise exception 'Other tenant can see production release status';end if;
  blocked:=false;
  begin
   perform public.chr_dispatch_order_lines(s,v_order_id,

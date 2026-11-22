@@ -103,6 +103,7 @@ declare
  v_id uuid;
  v_revision integer;
  v_status text;
+ v_old_status text:=null;
 begin
  if auth.uid() is null or not app_private.can_manage_store(p_store_id) then
   raise exception 'Access denied' using errcode='42501';
@@ -148,6 +149,7 @@ begin
   if v_quote.revision<>p_expected_revision then
    raise exception 'Quote changed since it was opened; reload before editing' using errcode='40001';
   end if;
+  v_old_status:=v_quote.status;
   if v_quote.status='accepted' and not coalesce(p_reopen,false) then
    raise exception 'Accepted quote requires explicit reopen for new revision' using errcode='23514';
   end if;
@@ -249,7 +251,7 @@ begin
   store_id,quote_id,event_type,from_status,to_status,revision,actor_id)
  values(p_store_id,v_id,
   case when p_quote_id is null then 'created' else 'revised' end,
-  case when p_quote_id is null then null else v_quote.status end,
+  v_old_status,
   'draft',v_revision,auth.uid());
  return jsonb_build_object('quote_id',v_id,'revision',v_revision,
   'status',v_status,'subtotal_minor',v_subtotal::bigint,

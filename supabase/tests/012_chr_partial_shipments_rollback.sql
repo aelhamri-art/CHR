@@ -47,7 +47,7 @@ declare d jsonb:=current_setting('chr.test.ship')::jsonb;
 begin
  order_result:=public.create_order(s,customer,location,profile,'ZZ','00000',
   jsonb_build_array(jsonb_build_object('variant_id',variant,'quantity',3)),gen_random_uuid());
- v_order_id:=(order_result->>'v_order_id')::uuid;
+ v_order_id:=(order_result->>'order_id')::uuid;
  select id into line_id from public.order_lines where store_id=s and order_id=v_order_id;
  if line_id is null then raise exception 'Cannot locate created order line';end if;
  perform public.confirm_manual_payment(s,v_order_id,'bank_transfer','BANK-TEST-12345','PAIEMENT RECU');

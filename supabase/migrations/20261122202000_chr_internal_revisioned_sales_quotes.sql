@@ -96,8 +96,8 @@ declare
  v_quantity integer;
  v_unit_minor bigint;
  v_price_reason text;
- v_available integer;
- v_shortage integer;
+ v_available bigint;
+ v_shortage bigint;
  v_subtotal numeric:=0;
  v_lines jsonb:='[]'::jsonb;
  v_id uuid;
@@ -198,7 +198,7 @@ begin
     raise exception 'Quote price exceeds authorized reduction' using errcode='23514';
    end if;
   end if;
-  select coalesce(sum(greatest(l.on_hand-l.reserved,0)),0)::integer
+  select coalesce(sum(greatest(l.on_hand-l.reserved,0)),0)::bigint
     into v_available from public.inventory_levels l
    join public.locations loc on loc.store_id=l.store_id and loc.id=l.location_id
    where l.store_id=p_store_id and l.variant_id=v_variant_id and loc.active;

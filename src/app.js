@@ -1,6 +1,7 @@
 import * as api from './api.js';
 import {ordersPanel} from './orders.js';
 import {salesQuotesPage,businessPoliciesPage} from './sales.js';
+import {releaseCenter} from './release.js';
 import {mediaPage} from './media.js';
 import {storefrontAdminPage} from './storefront-admin.js';
 import {importPage} from './import.js';
@@ -163,6 +164,11 @@ async function renderPage(){
    const page=await businessPoliciesPage(state.store.id,
      state.user?.id===state.store?.owner_user_id,notice,renderPage);
    if(state.route==='business_policies')setMain(page);
+   return;
+  }
+  if(route==='release_center'){
+   const page=await releaseCenter(state.store.id);
+   if(state.route==='release_center')setMain(page);
    return;
   }
   if(route==='settings')return await renderSettings();

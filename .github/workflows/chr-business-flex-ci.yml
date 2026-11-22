@@ -1,0 +1,62 @@
+name: AXIUM OS CHR - Commercial Flexibility P0
+on:
+  pull_request:
+    paths:
+      - 'supabase/migrations/**'
+      - 'supabase/tests/010_*'
+      - '.github/workflows/chr-business-flex-ci.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  p0-business-sql:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: chr_ci_disposable
+          POSTGRES_DB: chr_flex_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d chr_flex_ci"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 15
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGPASSWORD: chr_ci_disposable
+      PGDATABASE: chr_flex_ci
+      PGOPTIONS: -c statement_timeout=300000
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare PostgreSQL 17
+        run: |
+          command -v psql || (sudo apt-get update -qq && sudo apt-get install -y postgresql-client)
+          mkdir -p artifacts
+          psql -X -v ON_ERROR_STOP=1 -f benchmarks/100k/standalone-bootstrap.sql > artifacts/bootstrap.log 2>&1
+      - name: Replay every migration in a clean isolated database
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in $(find supabase/migrations -maxdepth 1 -name '*.sql' -type f | sort); do
+            echo "APPLY $file" | tee -a artifacts/migrations.log
+            psql -X -v ON_ERROR_STOP=1 -f "$file" >> artifacts/migrations.log 2>&1
+          done
+      - name: Prove quote versioning and negotiated-price integrity
+        shell: bash
+        run: |
+          set -o pipefail
+          psql -X -v ON_ERROR_STOP=1 -f supabase/tests/010_chr_flexible_business_quotes_and_price_rollback.sql 2>&1 | tee artifacts/business-flex-test.log
+      - name: Upload audit evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chr-business-flex-p0-sql-evidence
+          path: artifacts/
+          retention-days: 14

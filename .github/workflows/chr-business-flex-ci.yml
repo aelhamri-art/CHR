@@ -5,6 +5,7 @@ on:
       - 'supabase/migrations/**'
       - 'supabase/tests/010_*'
       - 'supabase/tests/011_*'
+      - 'supabase/tests/012_*'
       - '.github/workflows/chr-business-flex-ci.yml'
   workflow_dispatch:
 permissions:
@@ -59,6 +60,11 @@ jobs:
         run: |
           set -o pipefail
           psql -X -v ON_ERROR_STOP=1 -f supabase/tests/011_chr_quote_to_order_rollback.sql 2>&1 | tee artifacts/quote-to-order.log
+      - name: Verify split shipments and zero double dispatch
+        shell: bash
+        run: |
+          set -o pipefail
+          psql -X -v ON_ERROR_STOP=1 -f supabase/tests/012_chr_partial_shipments_rollback.sql 2>&1 | tee artifacts/partial-shipments.log
       - name: Upload audit evidence
         if: always()
         uses: actions/upload-artifact@v4

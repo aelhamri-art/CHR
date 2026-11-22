@@ -40,29 +40,29 @@ declare d jsonb:=current_setting('chr.test.ship')::jsonb;
  location uuid:=(d->>'location')::uuid;
  profile uuid:=(d->>'profile')::uuid;
  variant uuid:=(d->>'variant')::uuid;
- order_result jsonb;order_id uuid;line_id uuid;
+ order_result jsonb;v_order_id uuid;line_id uuid;
  key uuid:=gen_random_uuid(); r jsonb;
  n int; physical int; reserved_count int;
  blocked boolean;
 begin
  order_result:=public.create_order(s,customer,location,profile,'ZZ','00000',
   jsonb_build_array(jsonb_build_object('variant_id',variant,'quantity',3)),gen_random_uuid());
- order_id:=(order_result->>'order_id')::uuid;
- select id into line_id from public.order_lines where store_id=s and order_id=order_id;
+ v_order_id:=(order_result->>'v_order_id')::uuid;
+ select id into line_id from public.order_lines where store_id=s and order_id=v_order_id;
  if line_id is null then raise exception 'Cannot locate created order line';end if;
- perform public.confirm_manual_payment(s,order_id,'bank_transfer','BANK-TEST-12345','PAIEMENT RECU');
+ perform public.confirm_manual_payment(s,v_order_id,'bank_transfer','BANK-TEST-12345','PAIEMENT RECU');
 
- r:=public.chr_dispatch_order_lines(s,order_id,
+ r:=public.chr_dispatch_order_lines(s,v_order_id,
   jsonb_build_array(jsonb_build_object('order_line_id',line_id,'quantity',1)),
   'Local delivery','DELIVERY-REF-001',key);
  if r->>'fulfillment_status'<>'partial' then raise exception 'First dispatch not partial: %',r;end if;
- r:=public.chr_dispatch_order_lines(s,order_id,
+ r:=public.chr_dispatch_order_lines(s,v_order_id,
   jsonb_build_array(jsonb_build_object('order_line_id',line_id,'quantity',1)),
   'Local delivery','DELIVERY-REF-001',key);
  if r->>'status'<>'already_dispatched' then raise exception 'Idempotent replay failed';end if;
  blocked:=false;
  begin
-  perform public.chr_dispatch_order_lines(s,order_id,
+  perform public.chr_dispatch_order_lines(s,v_order_id,
    jsonb_build_array(jsonb_build_object('order_line_id',line_id,'quantity',2)),
    'Local delivery','DELIVERY-REF-001',key);
  exception when check_violation then blocked:=true;end;
@@ -74,25 +74,25 @@ begin
 
  blocked:=false;
  begin
-  perform public.chr_dispatch_order_lines(s,order_id,
+  perform public.chr_dispatch_order_lines(s,v_order_id,
    jsonb_build_array(jsonb_build_object('order_line_id',line_id,'quantity',3)),
    'Local delivery','DELIVERY-REF-002',gen_random_uuid());
  exception when check_violation then blocked:=true;end;
  if not blocked then raise exception 'Overshipment was accepted';end if;
 
- r:=public.chr_dispatch_order_lines(s,order_id,
+ r:=public.chr_dispatch_order_lines(s,v_order_id,
   jsonb_build_array(jsonb_build_object('order_line_id',line_id,'quantity',2)),
   'Local delivery','DELIVERY-REF-002',gen_random_uuid());
  if r->>'fulfillment_status'<>'fulfilled' then raise exception 'Final dispatch not completed: %',r;end if;
  select on_hand,reserved into physical,reserved_count from public.inventory_levels
   where store_id=s and variant_id=variant and location_id=location;
  if physical<>2 or reserved_count<>0 then raise exception 'Incorrect final inventory';end if;
- select count(*) into n from public.chr_shipments where store_id=s and order_id=order_id;
+ select count(*) into n from public.chr_shipments where store_id=s and order_id=v_order_id;
  if n<>2 then raise exception 'Incorrect shipment count';end if;
  select count(*) into n from public.inventory_movements where store_id=s and reason='fulfillment';
  if n<>2 then raise exception 'Double or missing movement';end if;
  select count(*) into n from public.orders
-  where store_id=s and id=order_id and status='completed' and fulfillment_status='fulfilled';
+  where store_id=s and id=v_order_id and status='completed' and fulfillment_status='fulfilled';
  if n<>1 then raise exception 'Order status not complete';end if;
 
  perform set_config('request.jwt.claim.sub','22000000-0000-4000-8000-000000000002',true);
@@ -100,7 +100,7 @@ begin
  if n<>0 then raise exception 'Other tenant can read shipments';end if;
  blocked:=false;
  begin
-  perform public.chr_dispatch_order_lines(s,order_id,
+  perform public.chr_dispatch_order_lines(s,v_order_id,
    jsonb_build_array(jsonb_build_object('order_line_id',line_id,'quantity',1)),
    'Local delivery','ATTACK-9999',gen_random_uuid());
  exception when insufficient_privilege then blocked:=true;end;

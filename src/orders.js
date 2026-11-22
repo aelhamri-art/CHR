@@ -1,6 +1,6 @@
 /* Workflows commerciaux : aucun prix, stock ou état de paiement modifié côté navigateur. */
 import * as api from './api.js';
-import {parseInteger,formatMoney} from './rules.js';
+import {parseInteger,parseMoney,formatMoney} from './rules.js';
 function el(tag,props={},...children){
  const node=document.createElement(tag);
  for(const [key,value] of Object.entries(props)){
@@ -77,9 +77,7 @@ export async function ordersPanel(storeId,onUpdated,notify){
      if(!selected)throw Error('Sélectionne une référence pour chaque ligne.');
      const line={variant_id:selected.id,quantity:parseInteger(quantity.value,{min:1,max:100000})};
      if(priceNegotiationEnabled){
-       const entered=unitPrice.value.trim().replace(',','.');
-       if(!/^\\d+(?:\\.\\d{1,2})?$/.test(entered))throw Error('Prix HT invalide.');
-       const agreed=Math.round(Number(entered)*100);
+       const agreed=parseMoney(unitPrice.value);
        if(agreed!==Number(selected.price_minor)){
          line.unit_price_minor=agreed;
          line.price_reason=priceReason.value.trim();

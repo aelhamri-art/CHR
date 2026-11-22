@@ -106,7 +106,7 @@ async function enter(){
  try {
   state.stores=await api.getStores(state.user.id);
   const stored=sessionStorage.getItem('chr-selected-store');
-  state.store=state.stores.find(s=>s.id===stored)||state.stores[0]||null;
+  state.store=state.stores.find(s=>s.id===stored)||state.stores.find(s=>s.slug==='chr33')||state.stores[0]||null;
   if(!state.store){onboard();return;}
   state.route=(location.hash.replace(/^#\/?/,'')||'dashboard');
   await renderShell();
@@ -142,7 +142,7 @@ async function renderShell(){
  E('div',{className:'workspace'},
  E('header',{className:'topbar'},btn('☰',()=>document.getElementById('sidebar')?.classList.toggle('open'),'menu-btn',{ariaLabel:'Afficher la navigation'}),
  E('div',{className:'store-switch'},E('label',{htmlFor:'select-store',className:'sr-only'},'Entreprise'),
- E('select',{id:'select-store',onchange:e=>{state.store=state.stores.find(s=>s.id===e.target.value);sessionStorage.setItem('chr-selected-store',state.store.id);navigate('dashboard');}},...state.stores.map(s=>E('option',{value:s.id,selected:s.id===state.store?.id},s.name)))),
+ E('select',{id:'select-store',onchange:e=>{state.store=state.stores.find(s=>s.id===e.target.value);sessionStorage.setItem('chr-selected-store',state.store.id);navigate('dashboard');}},...state.stores.map(s=>E('option',{value:s.id,selected:s.id===state.store?.id},s.name+' · '+s.slug)))),
  E('div',{className:'top-right'},E('span',{className:'chip'},'Supabase CHR'),E('span',{className:'avatar',title:state.user?.email||''},(state.user?.email||'A')[0].toUpperCase()),btn('Sortir',async()=>{await api.logout();state.user=null;state.store=null;authScreen();},'text-btn'))),
  E('div',{id:'notices',className:'notices'}),
  E('main',{id:'main-content',className:'main'},loading())));

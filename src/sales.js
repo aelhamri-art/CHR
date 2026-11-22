@@ -118,8 +118,8 @@ export async function salesQuotesPage(storeId,notify,onUpdated){
    const summary=(quote.lines||[]).reduce((n,l)=>n+Number(l.backorder_at_revision||0),0);
    const statusActions=E('div',{className:'action-inline'},
     button('Ouvrir',()=>openEditor(quote),'text-btn'),
-    ...(quote.status==='draft'?[button('Marquer proposé',()=>transition(quote,'proposed'),'text-btn')]:[]),
-    ...(quote.status==='proposed'?[button('Accepter',()=>transition(quote,'accepted'),'text-btn'),button('Refuser',()=>transition(quote,'declined'),'text-btn')]:[]),
+    ...(quote.status==='draft'?[button('Proposition envoyée',()=>transition(quote,'proposed'),'text-btn')]:[]),
+    ...(quote.status==='proposed'?[button('Accord client confirmé',()=>transition(quote,'accepted'),'text-btn'),button('Refuser',()=>transition(quote,'declined'),'text-btn')]:[]),
     ...(quote.status==='accepted'?[button('Réviser',()=>openEditor(quote,true),'text-btn')]:[]),
     ...(['declined','cancelled'].includes(quote.status)?[button('Réouvrir',()=>transition(quote,'draft'),'text-btn')]:[])
    );
@@ -140,13 +140,47 @@ export async function salesQuotesPage(storeId,notify,onUpdated){
     E('p',{className:'muted'},'100 derniers devis. Le suivi et les modifications sont conservés par révision.'));
  }
 
+ function confirmTransition(next){
+  const messages={
+   proposed:'La proposition a-t-elle vraiment été envoyée ? Aucun email automatique ne part de cette interface.',
+   accepted:'Précise comment le client a validé : email, téléphone ou signature. La signature électronique n’est pas simulée.',
+   declined:'Motif de refus ou retour du client.',
+   cancelled:'Confirmer l’annulation avec un motif.',
+   draft:'Expliquer la réouverture du dossier.'
+  };
+  return new Promise(resolve=>{
+   const dialog=E('dialog',{className:'os-confirm-dialog'});
+   const why=E('textarea',{rows:3,maxLength:500,required:true,placeholder:'Justification : 8 caractères minimum'});
+   const error=E('small',{className:'error'});
+   let settled=false;
+   const finish=answer=>{
+    if(settled)return;settled=true;dialog.close();dialog.remove();resolve(answer);
+   };
+   dialog.addEventListener('cancel',e=>{e.preventDefault();finish(null);});
+   const form=E('form',{},
+    E('h2',{},'Confirmer une étape commerciale'),
+    E('p',{},messages[next]||'Précise le motif de cette opération.'),
+    label('Justification',why),error,
+    E('div',{className:'page-actions'},
+     button('Annuler',()=>finish(null)),
+     E('button',{type:'submit',className:'btn accent'},'Confirmer')));
+   form.addEventListener('submit',e=>{
+    e.preventDefault();const reason=why.value.trim();
+    if(reason.length<8){error.textContent='Justification trop courte.';return;}
+    finish(reason);
+   });
+   dialog.append(form);document.body.append(dialog);dialog.showModal();why.focus();
+  });
+ }
  async function transition(q,next){
+  const reason=await confirmTransition(next);
+  if(!reason)return;
   try{
    await api.rpc('chr_set_sales_quote_status',{
     p_store_id:storeId,p_quote_id:q.id,p_expected_revision:q.revision,
-    p_new_status:next,p_reason:'Modification explicite du statut par un collaborateur'
+    p_new_status:next,p_reason:reason
    });
-   notify('État du devis mis à jour.','success');await onUpdated();
+   notify('État du devis mis à jour, motif historisé.','success');await onUpdated();
   }catch(e){notify(e.message,'error');}
  }
 

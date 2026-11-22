@@ -68,7 +68,7 @@ export async function catalogPage(slug,{query='',category=null,sort='name',curso
  }});
  return {items:Array.isArray(data?.items)?data.items:[],has_more:!!data?.has_more,next_cursor:data?.next_cursor??null};
 }
-export async function catalog(storeId,slug='chr'){
+export async function catalog(storeId,slug='bks-chr'){
  if(!storeId)return [];
  return (await catalogPage(slug,{limit:12})).items;
 }
